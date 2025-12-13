@@ -1,0 +1,26 @@
+name: Security Audit
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web-new
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: web-new/package-lock.json
+      - run: npm ci
+      - name: Run npm audit with JSON output
+        run: npm audit --json
+      - name: Check for vulnerabilities
+        run: npm audit --audit-level moderate

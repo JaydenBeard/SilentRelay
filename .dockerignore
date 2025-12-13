@@ -1,0 +1,60 @@
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Dependencies (will be installed in container)
+node_modules
+web/node_modules
+web-new/node_modules
+
+# Build outputs
+web/dist
+*.exe
+*.dll
+*.so
+*.dylib
+
+# IDE and editor
+.vscode
+.idea
+*.swp
+*.swo
+*~
+
+# Documentation (not needed in container)
+*.md
+docs/
+CLAUDE.md
+README.md
+
+# Docker files (prevent recursive copy)
+docker-compose*.yml
+Dockerfile*
+
+# Infrastructure configs (not needed in app containers)
+infrastructure/
+
+# Environment files (secrets should be injected at runtime)
+.env*
+*.local
+
+# Logs
+*.log
+logs/
+
+# Test files
+*_test.go
+*.test.ts
+*.spec.ts
+__tests__/
+coverage/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# OS files
+.DS_Store
+Thumbs.db

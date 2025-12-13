@@ -1,0 +1,73 @@
+# Prometheus Configuration for Secure Messenger
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: []
+
+rule_files: []
+
+scrape_configs:
+  # Prometheus self-monitoring
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # Chat servers
+  - job_name: 'chat-servers'
+    static_configs:
+      - targets: 
+          - 'chat-server-1:8080'
+          - 'chat-server-2:8080'
+    metrics_path: '/metrics'
+    scheme: http
+
+  # Group service
+  - job_name: 'group-service'
+    static_configs:
+      - targets: ['group-service:8083']
+    metrics_path: '/metrics'
+
+  # Presence service
+  - job_name: 'presence-service'
+    static_configs:
+      - targets: ['presence-service:8081']
+    metrics_path: '/metrics'
+
+  # Notification service
+  - job_name: 'notification-service'
+    static_configs:
+      - targets: ['notification-service:8082']
+    metrics_path: '/metrics'
+
+  # Redis
+  - job_name: 'redis'
+    static_configs:
+      - targets: ['redis-exporter:9121']
+
+  # PostgreSQL
+  - job_name: 'postgres'
+    static_configs:
+      - targets: ['postgres-exporter:9187']
+
+  # HAProxy
+  - job_name: 'haproxy'
+    static_configs:
+      - targets: ['loadbalancer:8404']
+    metrics_path: '/metrics'
+
+  # MinIO
+  - job_name: 'minio'
+    static_configs:
+      - targets: ['minio:9000']
+    metrics_path: '/minio/v2/metrics/cluster'
+
+  # Node Exporter - System metrics (CPU, RAM, disk, network)
+  - job_name: 'node'
+    static_configs:
+      - targets: ['node-exporter:9100']
+

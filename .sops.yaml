@@ -1,0 +1,14 @@
+# SOPS Configuration
+# https://github.com/mozilla/sops
+#
+# This tells SOPS which keys to use for encrypting files.
+# The public key is safe to commit - only the private key (in ~/.config/sops/age/keys.txt) can decrypt.
+
+creation_rules:
+  # Encrypt .env files (any format)
+  - path_regex: \.env.*$
+    age: age1kmaqa5ghxas6ncqelpls7gvhrw5tx3q9mrzm2n9pgsvn8yhknq3sqx02w7
+  
+  # Encrypt any secrets/ directory files  
+  - path_regex: secrets/.*
+    age: age1kmaqa5ghxas6ncqelpls7gvhrw5tx3q9mrzm2n9pgsvn8yhknq3sqx02w7

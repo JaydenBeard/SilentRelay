@@ -1,0 +1,1393 @@
+openapi: 3.0.3
+info:
+  title: SilentRelay API
+  description: |
+    Secure end-to-end encrypted messaging API for SilentRelay.
+    
+    ## Authentication
+    Most endpoints require JWT authentication via `Authorization: Bearer <token>` header.
+    
+    ## Rate Limiting
+    - SMS endpoints: 5 requests/minute/IP
+    - Auth endpoints: 10 requests/minute/IP  
+    - Protected endpoints: 100 requests/minute/user
+    
+    ## Security
+    All communications use end-to-end encryption. The server never has access to message content.
+  version: 1.0.0
+  contact:
+    name: SilentRelay Support
+    url: https://silentrelay.com.au
+  license:
+    name: Proprietary
+    url: https://silentrelay.com.au/terms
+
+servers:
+  - url: https://silentrelay.com.au/api/v1
+    description: Production server
+  - url: http://localhost:8080/api/v1
+    description: Local development
+
+tags:
+  - name: Authentication
+    description: User registration, login, and token management
+  - name: Users
+    description: User profile and key management
+  - name: Devices
+    description: Device linking and management
+  - name: Device Approval
+    description: Secure multi-device linking workflow
+  - name: Messages
+    description: Message retrieval and status updates
+  - name: Groups
+    description: Group creation and member management
+  - name: Media
+    description: Media upload and download
+  - name: Privacy
+    description: Privacy settings and blocking
+  - name: PIN
+    description: Server-side PIN synchronization
+  - name: WebRTC
+    description: WebRTC TURN credentials
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT access token obtained from login or registration
+
+  schemas:
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+          description: Error message
+        code:
+          type: string
+          description: Error code for client handling
+      required:
+        - error
+
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        phone_number:
+          type: string
+          example: "+1234567890"
+        username:
+          type: string
+          example: "john_doe"
+        display_name:
+          type: string
+          example: "John Doe"
+        avatar_url:
+          type: string
+          format: uri
+          example: "https://example.com/avatar.jpg"
+        created_at:
+          type: string
+          format: date-time
+
+    Device:
+      type: object
+      properties:
+        device_id:
+          type: string
+          format: uuid
+        device_name:
+          type: string
+          example: "Chrome on MacBook"
+        device_type:
+          type: string
+          enum: [web, mobile, desktop]
+        is_primary:
+          type: boolean
+        last_active:
+          type: string
+          format: date-time
+        created_at:
+          type: string
+          format: date-time
+
+    AuthTokens:
+      type: object
+      properties:
+        access_token:
+          type: string
+          description: JWT access token (1 hour expiry)
+        refresh_token:
+          type: string
+          description: JWT refresh token (30 day expiry)
+        expires_at:
+          type: string
+          format: date-time
+
+    Group:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        description:
+          type: string
+        creator_id:
+          type: string
+          format: uuid
+        members:
+          type: array
+          items:
+            $ref: '#/components/schemas/User'
+        created_at:
+          type: string
+          format: date-time
+
+    PrivacySettings:
+      type: object
+      properties:
+        profile_photo:
+          type: string
+          enum: [everyone, contacts, nobody]
+        last_seen:
+          type: string
+          enum: [everyone, contacts, nobody]
+        read_receipts:
+          type: boolean
+
+paths:
+  # =====================
+  # AUTHENTICATION
+  # =====================
+  /auth/request-code:
+    post:
+      tags:
+        - Authentication
+      summary: Request verification code
+      description: |
+        Initiates user registration or login by sending a verification code via SMS.
+        Rate limited to 5 requests per minute per IP.
+      operationId: requestCode
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - phone_number
+              properties:
+                phone_number:
+                  type: string
+                  pattern: '^\+[1-9]\d{1,14}$'
+                  example: "+1234567890"
+                  description: E.164 format phone number
+      responses:
+        '200':
+          description: Verification code sent
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Verification code sent"
+        '400':
+          description: Invalid phone number format
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          description: Rate limit exceeded
+
+  /auth/verify:
+    post:
+      tags:
+        - Authentication
+      summary: Verify code
+      description: Validates the verification code and returns tokens for existing users
+      operationId: verifyCode
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - phone_number
+                - code
+              properties:
+                phone_number:
+                  type: string
+                  example: "+1234567890"
+                code:
+                  type: string
+                  pattern: '^\d{6}$'
+                  example: "123456"
+      responses:
+        '200':
+          description: Code verified
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  verified:
+                    type: boolean
+                  user_exists:
+                    type: boolean
+                  token:
+                    type: string
+                    description: Present only if user_exists is true
+                  refresh_token:
+                    type: string
+                  device_id:
+                    type: string
+                    format: uuid
+                  user:
+                    $ref: '#/components/schemas/User'
+        '401':
+          description: Invalid or expired code
+
+  /auth/register:
+    post:
+      tags:
+        - Authentication
+      summary: Register new user
+      description: Creates a new user account with cryptographic keys for E2EE
+      operationId: register
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - phone_number
+                - code
+                - public_identity_key
+                - public_signed_prekey
+                - signed_prekey_signature
+                - device_id
+                - device_name
+                - device_type
+              properties:
+                phone_number:
+                  type: string
+                  example: "+1234567890"
+                code:
+                  type: string
+                  example: "123456"
+                public_identity_key:
+                  type: string
+                  format: byte
+                  description: Base64-encoded public identity key
+                public_signed_prekey:
+                  type: string
+                  format: byte
+                  description: Base64-encoded signed prekey
+                signed_prekey_signature:
+                  type: string
+                  format: byte
+                  description: Base64-encoded signature
+                display_name:
+                  type: string
+                  example: "John Doe"
+                device_id:
+                  type: string
+                  format: uuid
+                device_name:
+                  type: string
+                  example: "Primary Device"
+                device_type:
+                  type: string
+                  enum: [web, mobile, desktop]
+      responses:
+        '200':
+          description: User registered successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/AuthTokens'
+                  - type: object
+                    properties:
+                      user:
+                        $ref: '#/components/schemas/User'
+        '401':
+          description: Invalid verification code
+
+  /auth/login:
+    post:
+      tags:
+        - Authentication
+      summary: Login existing user
+      description: Authenticates an existing user on a new device
+      operationId: login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - phone_number
+                - device_id
+                - device_name
+                - device_type
+              properties:
+                phone_number:
+                  type: string
+                  example: "+1234567890"
+                device_id:
+                  type: string
+                  format: uuid
+                device_name:
+                  type: string
+                  example: "Web Browser"
+                device_type:
+                  type: string
+                  enum: [web, mobile, desktop]
+                public_device_key:
+                  type: string
+                  format: byte
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/AuthTokens'
+                  - type: object
+                    properties:
+                      user:
+                        $ref: '#/components/schemas/User'
+                      has_pin:
+                        type: boolean
+                        description: Whether user has a PIN set
+        '404':
+          description: User not found
+
+  /auth/refresh:
+    post:
+      tags:
+        - Authentication
+      summary: Refresh access token
+      description: Generates a new access token using a valid refresh token
+      operationId: refreshToken
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - refresh_token
+              properties:
+                refresh_token:
+                  type: string
+      responses:
+        '200':
+          description: Token refreshed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  access_token:
+                    type: string
+                  expires_at:
+                    type: string
+                    format: date-time
+        '401':
+          description: Invalid refresh token
+
+  # =====================
+  # USERS
+  # =====================
+  /users/me:
+    get:
+      tags:
+        - Users
+      summary: Get current user
+      description: Returns the authenticated user's profile
+      operationId: getCurrentUser
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: User profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '401':
+          description: Unauthorized
+
+    put:
+      tags:
+        - Users
+      summary: Update current user
+      description: Updates the authenticated user's profile
+      operationId: updateUser
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                display_name:
+                  type: string
+                username:
+                  type: string
+                avatar_url:
+                  type: string
+                  format: uri
+      responses:
+        '200':
+          description: User updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+
+    delete:
+      tags:
+        - Users
+      summary: Delete current user
+      description: Permanently deletes the user account and all associated data
+      operationId: deleteUser
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: User deleted
+        '401':
+          description: Unauthorized
+
+  /users/me/prekeys:
+    post:
+      tags:
+        - Users
+      summary: Upload prekeys
+      description: Uploads one-time prekeys for E2EE key exchange
+      operationId: uploadPrekeys
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - prekeys
+              properties:
+                prekeys:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      key_id:
+                        type: integer
+                      public_key:
+                        type: string
+                        format: byte
+      responses:
+        '200':
+          description: Prekeys uploaded
+        '401':
+          description: Unauthorized
+
+  /users/{userId}/keys:
+    get:
+      tags:
+        - Users
+      summary: Get user's public keys
+      description: Retrieves a user's public keys for establishing E2EE session
+      operationId: getUserKeys
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: User's public keys
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  identity_key:
+                    type: string
+                    format: byte
+                  signed_prekey:
+                    type: string
+                    format: byte
+                  signed_prekey_signature:
+                    type: string
+                    format: byte
+                  one_time_prekey:
+                    type: string
+                    format: byte
+                    description: Optional one-time prekey if available
+        '404':
+          description: User not found
+
+  /users/{userId}/profile:
+    get:
+      tags:
+        - Users
+      summary: Get user profile
+      description: Retrieves a user's public profile
+      operationId: getUserProfile
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: User profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+
+  /users/check-username/{username}:
+    get:
+      tags:
+        - Users
+      summary: Check username availability
+      operationId: checkUsername
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: username
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Username check result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  available:
+                    type: boolean
+
+  /users/search:
+    get:
+      tags:
+        - Users
+      summary: Search users
+      description: Search for users by username or phone number
+      operationId: searchUsers
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema:
+            type: string
+            minLength: 3
+          description: Search query (minimum 3 characters)
+      responses:
+        '200':
+          description: Search results
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  users:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/User'
+
+  # =====================
+  # DEVICES
+  # =====================
+  /devices:
+    get:
+      tags:
+        - Devices
+      summary: List devices
+      description: Returns all devices linked to the user's account
+      operationId: getDevices
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: List of devices
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  devices:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Device'
+
+  /devices/{deviceId}:
+    delete:
+      tags:
+        - Devices
+      summary: Remove device
+      description: Unlinks a device from the user's account
+      operationId: removeDevice
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: deviceId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Device removed
+        '403':
+          description: Cannot remove primary device
+
+  /devices/{deviceId}/primary:
+    put:
+      tags:
+        - Devices
+      summary: Set primary device
+      description: Sets a device as the primary device
+      operationId: setPrimaryDevice
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: deviceId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Primary device updated
+
+  # =====================
+  # DEVICE APPROVAL
+  # =====================
+  /device-approval/request:
+    post:
+      tags:
+        - Device Approval
+      summary: Request device approval
+      description: Initiates the device linking process for a new device
+      operationId: requestDeviceApproval
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - phone_number
+                - device_id
+                - device_name
+                - device_type
+              properties:
+                phone_number:
+                  type: string
+                device_id:
+                  type: string
+                  format: uuid
+                device_name:
+                  type: string
+                device_type:
+                  type: string
+                  enum: [web, mobile, desktop]
+                public_device_key:
+                  type: string
+                  format: byte
+      responses:
+        '200':
+          description: Approval request created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  request_id:
+                    type: string
+                    format: uuid
+                  verification_code:
+                    type: string
+                    description: 6-digit code to display on new device
+                  expires_at:
+                    type: string
+                    format: date-time
+
+  /device-approval/verify:
+    post:
+      tags:
+        - Device Approval
+      summary: Verify approval code
+      description: Verifies the approval code entered on the new device
+      operationId: verifyApprovalCode
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - request_id
+                - code
+              properties:
+                request_id:
+                  type: string
+                  format: uuid
+                code:
+                  type: string
+      responses:
+        '200':
+          description: Code verified
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  verified:
+                    type: boolean
+                  status:
+                    type: string
+                    enum: [pending, approved, denied, expired]
+
+  /device-approval/{requestId}/status:
+    get:
+      tags:
+        - Device Approval
+      summary: Check approval status
+      description: Polls for the approval status of a device linking request
+      operationId: checkApprovalStatus
+      parameters:
+        - name: requestId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Approval status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [pending, approved, denied, expired]
+                  access_token:
+                    type: string
+                    description: Present only when status is approved
+                  refresh_token:
+                    type: string
+
+  /device-approval/pending:
+    get:
+      tags:
+        - Device Approval
+      summary: Get pending approvals
+      description: Returns pending device approval requests for the authenticated user
+      operationId: getPendingApprovals
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Pending approvals
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  requests:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        request_id:
+                          type: string
+                          format: uuid
+                        device_name:
+                          type: string
+                        device_type:
+                          type: string
+                        created_at:
+                          type: string
+                          format: date-time
+
+  /device-approval/{requestId}/approve:
+    post:
+      tags:
+        - Device Approval
+      summary: Approve device
+      description: Approves a device linking request from the primary device
+      operationId: approveDevice
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: requestId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Device approved
+
+  /device-approval/{requestId}/deny:
+    post:
+      tags:
+        - Device Approval
+      summary: Deny device
+      description: Denies a device linking request
+      operationId: denyDevice
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: requestId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Device denied
+
+  # =====================
+  # MESSAGES
+  # =====================
+  /messages:
+    get:
+      tags:
+        - Messages
+      summary: Get messages
+      description: Retrieves pending encrypted messages for the authenticated user
+      operationId: getMessages
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: since
+          in: query
+          schema:
+            type: string
+            format: date-time
+          description: Return messages since this timestamp
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 100
+            maximum: 500
+      responses:
+        '200':
+          description: List of encrypted messages
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  messages:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                          format: uuid
+                        sender_id:
+                          type: string
+                          format: uuid
+                        encrypted_content:
+                          type: string
+                          format: byte
+                        timestamp:
+                          type: string
+                          format: date-time
+
+  /messages/{messageId}/status:
+    put:
+      tags:
+        - Messages
+      summary: Update message status
+      description: Updates the delivery/read status of a message
+      operationId: updateMessageStatus
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: messageId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - status
+              properties:
+                status:
+                  type: string
+                  enum: [delivered, read]
+      responses:
+        '200':
+          description: Status updated
+
+  # =====================
+  # GROUPS
+  # =====================
+  /groups:
+    post:
+      tags:
+        - Groups
+      summary: Create group
+      description: Creates a new group chat
+      operationId: createGroup
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+                - members
+              properties:
+                name:
+                  type: string
+                  maxLength: 100
+                description:
+                  type: string
+                  maxLength: 500
+                members:
+                  type: array
+                  items:
+                    type: string
+                    format: uuid
+                  minItems: 1
+      responses:
+        '200':
+          description: Group created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Group'
+
+  /groups/{groupId}:
+    get:
+      tags:
+        - Groups
+      summary: Get group
+      description: Retrieves group details
+      operationId: getGroup
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: groupId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Group details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Group'
+        '403':
+          description: Not a group member
+        '404':
+          description: Group not found
+
+  /groups/{groupId}/members:
+    post:
+      tags:
+        - Groups
+      summary: Add group member
+      description: Adds a new member to the group
+      operationId: addGroupMember
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: groupId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - user_id
+              properties:
+                user_id:
+                  type: string
+                  format: uuid
+      responses:
+        '200':
+          description: Member added
+
+  /groups/{groupId}/members/{userId}:
+    delete:
+      tags:
+        - Groups
+      summary: Remove group member
+      description: Removes a member from the group
+      operationId: removeGroupMember
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: groupId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Member removed
+
+  # =====================
+  # MEDIA
+  # =====================
+  /media/upload-url:
+    post:
+      tags:
+        - Media
+      summary: Get upload URL
+      description: Generates a presigned URL for media upload
+      operationId: getUploadUrl
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - file_name
+                - content_type
+                - size
+              properties:
+                file_name:
+                  type: string
+                content_type:
+                  type: string
+                  example: "image/jpeg"
+                size:
+                  type: integer
+                  description: File size in bytes
+                  maximum: 104857600
+      responses:
+        '200':
+          description: Upload URL generated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  upload_url:
+                    type: string
+                    format: uri
+                  media_id:
+                    type: string
+                    format: uuid
+                  expires_at:
+                    type: string
+                    format: date-time
+
+  /media/{mediaId}:
+    get:
+      tags:
+        - Media
+      summary: Get media URL
+      description: Generates a presigned URL for media download
+      operationId: getMediaUrl
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: mediaId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Download URL
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  download_url:
+                    type: string
+                    format: uri
+                  expires_at:
+                    type: string
+                    format: date-time
+        '404':
+          description: Media not found
+
+  # =====================
+  # PRIVACY
+  # =====================
+  /privacy:
+    get:
+      tags:
+        - Privacy
+      summary: Get privacy settings
+      operationId: getPrivacySettings
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Privacy settings
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PrivacySettings'
+
+    post:
+      tags:
+        - Privacy
+      summary: Update privacy setting
+      operationId: updatePrivacySetting
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                setting:
+                  type: string
+                  enum: [profile_photo, last_seen, read_receipts]
+                value:
+                  type: string
+      responses:
+        '200':
+          description: Setting updated
+
+  /users/blocked:
+    get:
+      tags:
+        - Privacy
+      summary: Get blocked users
+      operationId: getBlockedUsers
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Blocked users
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  blocked_users:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/User'
+
+  /users/block:
+    post:
+      tags:
+        - Privacy
+      summary: Block user
+      operationId: blockUser
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - user_id
+              properties:
+                user_id:
+                  type: string
+                  format: uuid
+      responses:
+        '200':
+          description: User blocked
+
+  /users/unblock:
+    post:
+      tags:
+        - Privacy
+      summary: Unblock user
+      operationId: unblockUser
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - user_id
+              properties:
+                user_id:
+                  type: string
+                  format: uuid
+      responses:
+        '200':
+          description: User unblocked
+
+  # =====================
+  # PIN
+  # =====================
+  /pin:
+    get:
+      tags:
+        - PIN
+      summary: Get PIN status
+      description: Check if user has a PIN set (returns encrypted PIN hash)
+      operationId: getPIN
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: PIN status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  has_pin:
+                    type: boolean
+                  encrypted_pin:
+                    type: string
+                    format: byte
+                    description: Present only if has_pin is true
+
+    post:
+      tags:
+        - PIN
+      summary: Set PIN
+      operationId: setPIN
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - encrypted_pin
+              properties:
+                encrypted_pin:
+                  type: string
+                  format: byte
+                  description: Client-side encrypted PIN hash
+      responses:
+        '200':
+          description: PIN set
+
+    delete:
+      tags:
+        - PIN
+      summary: Delete PIN
+      operationId: deletePIN
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: PIN deleted
+
+  # =====================
+  # WEBRTC
+  # =====================
+  /rtc/turn-credentials:
+    get:
+      tags:
+        - WebRTC
+      summary: Get TURN credentials
+      description: Returns time-limited TURN server credentials for WebRTC
+      operationId: getTurnCredentials
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: TURN credentials
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  urls:
+                    type: array
+                    items:
+                      type: string
+                    example:
+                      - "turn:turn.silentrelay.com.au:3478"
+                      - "turns:turn.silentrelay.com.au:5349"
+                  username:
+                    type: string
+                  credential:
+                    type: string
+                  ttl:
+                    type: integer
+                    description: Credential validity in seconds

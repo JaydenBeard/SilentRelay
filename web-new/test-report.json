@@ -1,0 +1,140 @@
+{
+  "summary": {
+    "total": 11,
+    "passed": 3,
+    "failed": 1,
+    "skipped": 7
+  },
+  "tests": [
+    {
+      "name": "Application loads successfully",
+      "status": "PASS",
+      "message": "Page title: SilentRelay",
+      "timestamp": "2025-12-06T10:31:38.192Z",
+      "error": null
+    },
+    {
+      "name": "User registration functionality",
+      "status": "SKIP",
+      "message": "Registration form not accessible from landing page",
+      "timestamp": "2025-12-06T10:31:44.491Z",
+      "error": null
+    },
+    {
+      "name": "User login functionality",
+      "status": "SKIP",
+      "message": "Login form not accessible",
+      "timestamp": "2025-12-06T10:31:50.418Z",
+      "error": null
+    },
+    {
+      "name": "WebSocket connection validation",
+      "status": "FAIL",
+      "message": "WebSocket validation failed",
+      "timestamp": "2025-12-06T10:31:56.327Z",
+      "error": "Execution context was destroyed"
+    },
+    {
+      "name": "File upload functionality",
+      "status": "SKIP",
+      "message": "No file upload elements found",
+      "timestamp": "2025-12-06T10:31:58.900Z",
+      "error": null
+    },
+    {
+      "name": "Group chat functionality",
+      "status": "SKIP",
+      "message": "Group chat features not visible (may require login)",
+      "timestamp": "2025-12-06T10:32:01.482Z",
+      "error": null
+    },
+    {
+      "name": "Privacy settings functionality",
+      "status": "SKIP",
+      "message": "Privacy settings not accessible (may require login)",
+      "timestamp": "2025-12-06T10:32:04.174Z",
+      "error": null
+    },
+    {
+      "name": "Message deletion functionality",
+      "status": "SKIP",
+      "message": "No messages found to test deletion",
+      "timestamp": "2025-12-06T10:32:07.857Z",
+      "error": null
+    },
+    {
+      "name": "Presence indicators",
+      "status": "SKIP",
+      "message": "Presence indicators not visible (may require login or active users)",
+      "timestamp": "2025-12-06T10:32:12.392Z",
+      "error": null
+    },
+    {
+      "name": "Security headers validation",
+      "status": "PASS",
+      "message": "Security headers: 5/5 (100%)",
+      "timestamp": "2025-12-06T10:32:13.447Z",
+      "error": null
+    },
+    {
+      "name": "Performance metrics",
+      "status": "PASS",
+      "message": "Page load: 1147ms, DOM: 0.0949999988079071ms",
+      "timestamp": "2025-12-06T10:32:15.596Z",
+      "error": null
+    }
+  ],
+  "errors": [
+    {
+      "message": "Loading the stylesheet 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap' violates the following Content Security Policy directive: \"style-src 'self'\". Note that 'style-src-elem' was not explicitly set, so 'style-src' is used as a fallback. The action has been blocked.",
+      "timestamp": "2025-12-06T10:31:37.943Z"
+    },
+    {
+      "message": "Loading the stylesheet 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap' violates the following Content Security Policy directive: \"style-src 'self'\". Note that 'style-src-elem' was not explicitly set, so 'style-src' is used as a fallback. The action has been blocked.",
+      "timestamp": "2025-12-06T10:31:39.393Z"
+    },
+    {
+      "message": "Loading the stylesheet 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap' violates the following Content Security Policy directive: \"style-src 'self'\". Note that 'style-src-elem' was not explicitly set, so 'style-src' is used as a fallback. The action has been blocked.",
+      "timestamp": "2025-12-06T10:31:45.313Z"
+    },
+    {
+      "message": "Loading the stylesheet 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap' violates the following Content Security Policy directive: \"style-src 'self'\". Note that 'style-src-elem' was not explicitly set, so 'style-src' is used as a fallback. The action has been blocked.",
+      "timestamp": "2025-12-06T10:31:51.223Z"
+    },
+    {
+      "message": "Loading the stylesheet 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap' violates the following Content Security Policy directive: \"style-src 'self'\". Note that 'style-src-elem' was not explicitly set, so 'style-src' is used as a fallback. The action has been blocked.",
+      "timestamp": "2025-12-06T10:31:57.133Z"
+    },
+    {
+      "message": "Loading the stylesheet 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap' violates the following Content Security Policy directive: \"style-src 'self'\". Note that 'style-src-elem' was not explicitly set, so 'style-src' is used as a fallback. The action has been blocked.",
+      "timestamp": "2025-12-06T10:31:59.941Z"
+    },
+    {
+      "message": "Loading the stylesheet 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap' violates the following Content Security Policy directive: \"style-src 'self'\". Note that 'style-src-elem' was not explicitly set, so 'style-src' is used as a fallback. The action has been blocked.",
+      "timestamp": "2025-12-06T10:32:02.540Z"
+    },
+    {
+      "message": "Loading the stylesheet 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap' violates the following Content Security Policy directive: \"style-src 'self'\". Note that 'style-src-elem' was not explicitly set, so 'style-src' is used as a fallback. The action has been blocked.",
+      "timestamp": "2025-12-06T10:32:05.212Z"
+    },
+    {
+      "message": "Loading the stylesheet 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap' violates the following Content Security Policy directive: \"style-src 'self'\". Note that 'style-src-elem' was not explicitly set, so 'style-src' is used as a fallback. The action has been blocked.",
+      "timestamp": "2025-12-06T10:32:08.899Z"
+    },
+    {
+      "message": "Loading the stylesheet 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap' violates the following Content Security Policy directive: \"style-src 'self'\". Note that 'style-src-elem' was not explicitly set, so 'style-src' is used as a fallback. The action has been blocked.",
+      "timestamp": "2025-12-06T10:32:13.432Z"
+    },
+    {
+      "message": "Loading the stylesheet 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap' violates the following Content Security Policy directive: \"style-src 'self'\". Note that 'style-src-elem' was not explicitly set, so 'style-src' is used as a fallback. The action has been blocked.",
+      "timestamp": "2025-12-06T10:32:14.496Z"
+    }
+  ],
+  "performance": {
+    "pageLoadTime": 1147,
+    "domContentLoaded": 0.0949999988079071,
+    "loadComplete": 0.004999995231628418,
+    "totalTime": 58.1000000089407
+  },
+  "recommendations": []
+}

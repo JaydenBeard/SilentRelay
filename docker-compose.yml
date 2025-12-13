@@ -1,0 +1,504 @@
+services:
+  # ========================================
+  # LOAD BALANCER (HAProxy)
+  # ========================================
+  loadbalancer:
+    image: haproxy:2.9
+    ports:
+      - "443:443"
+      - "80:80" # Add HTTP port for fallback mode
+    volumes:
+      - ./infrastructure/haproxy/haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro
+      - ./infrastructure/haproxy/haproxy-fallback.cfg:/usr/local/etc/haproxy/haproxy-fallback.cfg:ro
+      - ./infrastructure/certs:/etc/ssl/certs:ro
+      - ./infrastructure/haproxy/entrypoint.sh:/entrypoint.sh:ro
+    depends_on:
+      - chat-server-1
+      - chat-server-2
+    restart: unless-stopped
+    healthcheck:
+      test: [ "CMD-SHELL", "test -f /etc/ssl/certs/haproxy.pem && openssl x509 -in /etc/ssl/certs/haproxy.pem -noout || exit 1" ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    entrypoint: [ "/bin/bash", "/entrypoint.sh" ]
+    networks:
+      - messaging-network
+
+  # ========================================
+  # CHAT SERVERS (x2)
+  # ========================================
+
+  chat-server-1:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        BUILD_TIME: ${BUILD_TIME:-default}
+    ports:
+      - "8081:8080"
+    environment:
+      - SERVER_ID=chat-server-1
+      - SERVER_PORT=8080
+      - "REDIS_URL=redis:6379"
+      - "POSTGRES_HOST=postgres"
+      - "CONSUL_URL=consul:8500"
+      - "MINIO_URL=minio:9000"
+      - "MINIO_ACCESS_KEY=${MINIO_ROOT_USER:-silentrelay}"
+      - "DEV_MODE=${DEV_MODE:-false}"
+      - "CLICKSEND_USERNAME=${CLICKSEND_USERNAME}"
+      - "CLICKSEND_FROM=${CLICKSEND_FROM}"
+      - "TURN_SERVER_URL=${TURN_SERVER_URL:-turn:localhost:3478}"
+    secrets:
+      - jwt_secret
+      - hmac_secret
+      - postgres_password
+      - clicksend_api_key
+      - turn_secret
+      - minio_root_password
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      consul:
+        condition: service_healthy
+      minio:
+        condition: service_started
+    healthcheck:
+      test: [ "CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:8080/health || exit 1" ]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    networks:
+      - messaging-network
+
+  chat-server-2:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        BUILD_TIME: ${BUILD_TIME:-default}
+    ports:
+      - "8082:8080"
+    environment:
+      - SERVER_ID=chat-server-2
+      - SERVER_PORT=8080
+      - "REDIS_URL=redis:6379"
+      - "POSTGRES_HOST=postgres"
+      - "CONSUL_URL=consul:8500"
+      - "MINIO_URL=minio:9000"
+      - "MINIO_ACCESS_KEY=${MINIO_ROOT_USER:-silentrelay}"
+      - "DEV_MODE=${DEV_MODE:-false}"
+      - "CLICKSEND_USERNAME=${CLICKSEND_USERNAME}"
+      - "CLICKSEND_FROM=${CLICKSEND_FROM}"
+      - "TURN_SERVER_URL=${TURN_SERVER_URL:-turn:localhost:3478}"
+    secrets:
+      - jwt_secret
+      - hmac_secret
+      - postgres_password
+      - clicksend_api_key
+      - turn_secret
+      - minio_root_password
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      consul:
+        condition: service_healthy
+      minio:
+        condition: service_started
+    healthcheck:
+      test: [ "CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:8080/health || exit 1" ]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    networks:
+      - messaging-network
+
+  # ========================================
+  # FRONTEND (React App - SilentRelay)
+  # ========================================
+  frontend:
+    build:
+      context: ./web-new
+      dockerfile: Dockerfile
+    ports:
+      - "3000:80"
+    depends_on:
+      - chat-server-1
+      - chat-server-2
+    volumes:
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+    healthcheck:
+      test: [ "CMD", "wget", "-q", "--spider", "http://127.0.0.1:80" ]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    networks:
+      - messaging-network
+
+  # ========================================
+  # TURN SERVER (coturn for WebRTC relay)
+  # ========================================
+  turn:
+    image: coturn/coturn:4.6.2-r4
+    ports:
+      - "3478:3478/udp"
+      - "3478:3478/tcp"
+      - "5349:5349/udp"
+      - "5349:5349/tcp"
+      # TURN relay ports for media - adjust range as needed
+      - "49152-49200:49152-49200/udp"
+    volumes:
+      - ./infrastructure/turn/turnserver.conf:/etc/coturn/turnserver.conf:ro
+      - ./infrastructure/certs:/etc/ssl/certs:ro
+      - turn-logs:/var/log/coturn
+    environment:
+      - "TURN_SECRET=${TURN_SECRET:?TURN_SECRET must be set in .env file}"
+    restart: unless-stopped
+    networks:
+      - messaging-network
+
+  # ========================================
+  # GROUP SERVICE
+  # ========================================
+  group-service:
+    build:
+      context: .
+      dockerfile: Dockerfile.group
+    environment:
+      - SERVER_PORT=8083
+      - "REDIS_URL=redis:6379"
+      # SECURITY: Require POSTGRES_PASSWORD to be set
+      - "POSTGRES_URL=postgres://messaging:${POSTGRES_PASSWORD}@postgres:5432/messaging?sslmode=disable"
+      # SECURITY: JWT_SECRET MUST be set - critical for authentication security
+      - "JWT_SECRET=${JWT_SECRET:?JWT_SECRET must be set}"
+    depends_on:
+      redis:
+        condition: service_started
+      postgres:
+        condition: service_healthy
+    networks:
+      - messaging-network
+
+  # ========================================
+  # PRESENCE SERVICE
+  # ========================================
+  presence-service:
+    build:
+      context: .
+      dockerfile: Dockerfile.presence
+    environment:
+      - "REDIS_URL=redis:6379"
+      # SECURITY: Require POSTGRES_PASSWORD to be set - no defaults allowed
+      - "POSTGRES_URL=postgres://messaging:${POSTGRES_PASSWORD}@postgres:5432/messaging?sslmode=disable"
+      # SECURITY: JWT_SECRET MUST be set - critical for authentication security
+      - "JWT_SECRET=${JWT_SECRET:?JWT_SECRET must be set}"
+      - SERVER_PORT=8081
+    depends_on:
+      redis:
+        condition: service_started
+      postgres:
+        condition: service_healthy
+    networks:
+      - messaging-network
+
+  # ========================================
+  # NOTIFICATION SERVICE
+  # ========================================
+  notification-service:
+    build:
+      context: .
+      dockerfile: Dockerfile.notification
+    environment:
+      - "REDIS_URL=redis:6379"
+      - SERVER_PORT=8082
+    depends_on:
+      - redis
+    networks:
+      - messaging-network
+
+  # ========================================
+  # SCHEDULER (Cleanup & Maintenance Jobs)
+  # ========================================
+  scheduler:
+    build:
+      context: .
+      dockerfile: Dockerfile.scheduler
+    environment:
+      - "REDIS_URL=redis:6379"
+      # SECURITY: Require POSTGRES_PASSWORD to be set
+      - "POSTGRES_URL=postgres://messaging:${POSTGRES_PASSWORD}@postgres:5432/messaging?sslmode=disable"
+    depends_on:
+      redis:
+        condition: service_started
+      postgres:
+        condition: service_healthy
+    networks:
+      - messaging-network
+
+  # ========================================
+  # MESSAGE QUEUE WORKER
+  # ========================================
+  queue-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.worker
+    environment:
+      - "REDIS_URL=redis:6379"
+      # SECURITY: Require POSTGRES_PASSWORD to be set
+      - "POSTGRES_URL=postgres://messaging:${POSTGRES_PASSWORD}@postgres:5432/messaging?sslmode=disable"
+      - CONSUMER_GROUP=message_processors
+    depends_on:
+      redis:
+        condition: service_started
+      postgres:
+        condition: service_healthy
+    networks:
+      - messaging-network
+    deploy:
+      replicas: 2
+
+  # ========================================
+  # REDIS
+  # ========================================
+  redis:
+    image: redis:7-alpine
+    # SECURITY: Bind to localhost only - access via SSH tunnel
+    ports:
+      - "127.0.0.1:6379:6379"
+    volumes:
+      - redis-data:/data
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy volatile-lru
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+    networks:
+      - messaging-network
+
+  # ========================================
+  # POSTGRESQL
+  # ========================================
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      - POSTGRES_USER=messaging
+      - POSTGRES_PASSWORD_FILE=/run/secrets/postgres_password
+      - POSTGRES_DB=messaging
+    secrets:
+      - postgres_password
+    # SECURITY: Bind to localhost only - access via SSH tunnel
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./infrastructure/db/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U messaging -d messaging" ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    networks:
+      - messaging-network
+
+  # ========================================
+  # CONSUL (Service Discovery)
+  # ========================================
+  consul:
+    image: hashicorp/consul:1.18.1
+    # SECURITY: Bind to localhost only - access via SSH tunnel
+    ports:
+      - "127.0.0.1:8500:8500"
+      - "127.0.0.1:8600:8600/udp"
+    command: agent -server -ui -bootstrap-expect=1 -client=0.0.0.0
+    volumes:
+      - consul-data:/consul/data
+    healthcheck:
+      test: [ "CMD", "consul", "members" ]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    networks:
+      - messaging-network
+
+  # ========================================
+  # MINIO (Blob Storage)
+  # ========================================
+  minio:
+    image: minio/minio:RELEASE.2024-01-16T16-07-38Z
+    # SECURITY: Bind to localhost only - access via SSH tunnel
+    ports:
+      - "127.0.0.1:9000:9000"
+      - "127.0.0.1:9001:9001"
+    environment:
+      - "MINIO_ROOT_USER=${MINIO_ROOT_USER:-silentrelay}"
+      - MINIO_ROOT_PASSWORD_FILE=/run/secrets/minio_root_password
+      - MINIO_PROMETHEUS_AUTH_TYPE=public
+    secrets:
+      - minio_root_password
+    volumes:
+      - minio-data:/data
+    command: server /data --console-address ":9001"
+    healthcheck:
+      test: [ "CMD", "mc", "ready", "local" ]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    networks:
+      - messaging-network
+
+  # ========================================
+  # OBSERVABILITY STACK
+  # ========================================
+
+  # Prometheus - Metrics collection
+  prometheus:
+    image: prom/prometheus:v2.48.0
+    # SECURITY: Bind to localhost only - access via SSH tunnel
+    ports:
+      - "127.0.0.1:9090:9090"
+    volumes:
+      - ./infrastructure/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.enable-lifecycle'
+    networks:
+      - messaging-network
+
+  # Grafana - Dashboards
+  grafana:
+    image: grafana/grafana:11.0.0
+    # SECURITY: Bind to localhost only - access via SSH tunnel
+    ports:
+      - "127.0.0.1:3001:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - "GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:?GRAFANA_ADMIN_PASSWORD must be set in .env file}"
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./infrastructure/grafana/provisioning:/etc/grafana/provisioning:ro
+    depends_on:
+      - prometheus
+    networks:
+      - messaging-network
+
+  # Redis Exporter - Redis metrics
+  redis-exporter:
+    image: oliver006/redis_exporter:v1.60.0
+    environment:
+      - "REDIS_ADDR=redis:6379"
+    depends_on:
+      - redis
+    networks:
+      - messaging-network
+
+  # Postgres Exporter - PostgreSQL metrics
+  postgres-exporter:
+    image: prometheuscommunity/postgres-exporter:v0.15.0
+    environment:
+      # SECURITY: Require POSTGRES_PASSWORD to be set
+      - "DATA_SOURCE_NAME=postgresql://messaging:${POSTGRES_PASSWORD}@postgres:5432/messaging?sslmode=disable"
+    depends_on:
+      - postgres
+    networks:
+      - messaging-network
+
+  # Node Exporter - System metrics (CPU, RAM, disk, network)
+  node-exporter:
+    image: prom/node-exporter:v1.7.0
+    container_name: node-exporter
+    restart: unless-stopped
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    command:
+      - '--path.procfs=/host/proc'
+      - '--path.sysfs=/host/sys'
+      - '--path.rootfs=/rootfs'
+      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
+    # SECURITY: Bind to localhost only - access via SSH tunnel
+    ports:
+      - "127.0.0.1:9100:9100"
+    networks:
+      - messaging-network
+
+  # ========================================
+  # CENTRALIZED LOGGING (Loki + Promtail)
+  # ========================================
+
+  # Loki - Log aggregation system
+  loki:
+    image: grafana/loki:3.0.0
+    # SECURITY: Bind to localhost only - access via SSH tunnel
+    ports:
+      - "127.0.0.1:3100:3100"
+    volumes:
+      - ./infrastructure/loki/loki-config.yml:/etc/loki/loki-config.yml:ro
+      - loki-data:/loki
+    command: -config.file=/etc/loki/loki-config.yml
+    healthcheck:
+      test: [ "CMD-SHELL", "wget --spider -q http://127.0.0.1:3100/ready || exit 1" ]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    networks:
+      - messaging-network
+
+  # Promtail - Log collector (ships logs from all containers to Loki)
+  promtail:
+    image: grafana/promtail:3.0.0
+    volumes:
+      - ./infrastructure/loki/promtail-config.yml:/etc/promtail/promtail-config.yml:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+    command: -config.file=/etc/promtail/promtail-config.yml
+    depends_on:
+      - loki
+    networks:
+      - messaging-network
+
+networks:
+  messaging-network:
+    driver: bridge
+
+volumes:
+  redis-data:
+  postgres-data:
+  consul-data:
+  minio-data:
+  prometheus-data:
+  grafana-data:
+  turn-logs:
+  loki-data:
+
+    # Docker Secrets - stored securely in /opt/secrets/
+secrets:
+  jwt_secret:
+    file: /opt/secrets/jwt_secret
+  hmac_secret:
+    file: /opt/secrets/hmac_secret
+  postgres_password:
+    file: /opt/secrets/postgres_password
+  clicksend_api_key:
+    file: /opt/secrets/clicksend_api_key
+  turn_secret:
+    file: /opt/secrets/turn_secret
+  minio_root_password:
+    file: /opt/secrets/minio_root_password

@@ -1,0 +1,65 @@
+{
+  "summary": {
+    "total": 4,
+    "passed": 1,
+    "failed": 0,
+    "skipped": 3
+  },
+  "tests": [
+    {
+      "name": "Send/receive messages - verify encryption in localStorage",
+      "status": "SKIP",
+      "message": "No chat data found in localStorage (may need to send messages first)",
+      "timestamp": "2025-12-06T10:31:40.273Z",
+      "error": null
+    },
+    {
+      "name": "Refresh browser - verify messages decrypt and display correctly",
+      "status": "SKIP",
+      "message": "No chat data to test refresh persistence",
+      "timestamp": "2025-12-06T10:31:43.441Z",
+      "error": null
+    },
+    {
+      "name": "Inspect localStorage - verify only encrypted data is stored",
+      "status": "SKIP",
+      "message": "No chat-storage key found",
+      "timestamp": "2025-12-06T10:31:46.625Z",
+      "error": null
+    },
+    {
+      "name": "Test error scenarios - PIN not entered, encryption failures",
+      "status": "PASS",
+      "message": "No encryption-related errors detected",
+      "timestamp": "2025-12-06T10:31:54.822Z",
+      "error": null
+    }
+  ],
+  "errors": [
+    {
+      "message": "Loading the stylesheet 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap' violates the following Content Security Policy directive: \"style-src 'self'\". Note that 'style-src-elem' was not explicitly set, so 'style-src' is used as a fallback. The action has been blocked.",
+      "timestamp": "2025-12-06T10:31:38.114Z"
+    },
+    {
+      "message": "Loading the stylesheet 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap' violates the following Content Security Policy directive: \"style-src 'self'\". Note that 'style-src-elem' was not explicitly set, so 'style-src' is used as a fallback. The action has been blocked.",
+      "timestamp": "2025-12-06T10:31:41.315Z"
+    },
+    {
+      "message": "Loading the stylesheet 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap' violates the following Content Security Policy directive: \"style-src 'self'\". Note that 'style-src-elem' was not explicitly set, so 'style-src' is used as a fallback. The action has been blocked.",
+      "timestamp": "2025-12-06T10:31:44.491Z"
+    },
+    {
+      "message": "Loading the stylesheet 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap' violates the following Content Security Policy directive: \"style-src 'self'\". Note that 'style-src-elem' was not explicitly set, so 'style-src' is used as a fallback. The action has been blocked.",
+      "timestamp": "2025-12-06T10:31:47.681Z"
+    },
+    {
+      "message": "Loading the stylesheet 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap' violates the following Content Security Policy directive: \"style-src 'self'\". Note that 'style-src-elem' was not explicitly set, so 'style-src' is used as a fallback. The action has been blocked.",
+      "timestamp": "2025-12-06T10:31:53.581Z"
+    },
+    {
+      "message": "Loading the stylesheet 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap' violates the following Content Security Policy directive: \"style-src 'self'\". Note that 'style-src-elem' was not explicitly set, so 'style-src' is used as a fallback. The action has been blocked.",
+      "timestamp": "2025-12-06T10:31:55.845Z"
+    }
+  ],
+  "recommendations": []
+}

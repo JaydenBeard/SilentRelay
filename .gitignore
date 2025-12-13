@@ -1,0 +1,120 @@
+# ============================================
+# MESSAGING APP - .gitignore
+# ============================================
+
+# Environment variables - NEVER commit .env files
+# NOTE: .env contains production secrets
+# Use SOPS to decrypt: sops --decrypt .env.encrypted > .env
+.env
+.env.*
+!.env.encrypted
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Logs
+*.log
+logs/
+*.log.*
+
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# Build artifacts
+dist/
+build/
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Go specific
+*.test
+*.out
+vendor/
+coverage.out
+coverage.html
+# go.sum should be committed for reproducible builds
+
+# IDE and AI assistant configs
+.idea/
+.vscode/
+.claude/
+.kilocode/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Compiled binaries
+/chatserver
+/groupservice
+/presence
+/notification
+/worker
+/scheduler
+cmd/chatserver/chatserver
+cmd/groupservice/groupservice
+cmd/presence/presence
+cmd/notification/notification
+cmd/worker/worker
+cmd/scheduler/scheduler
+
+# Test coverage
+coverage.txt
+coverage.html
+*.cover
+*.coverprofile
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.bak
+
+# SSL/TLS certificates (if self-signed for dev)
+*.pem
+*.crt
+*.key
+*.p12
+*.pfx
+
+# Secrets and credentials
+secrets/
+credentials/
+*.secret
+*.credential
+
+# Docker volumes
+docker-compose.override.yml
+
+# Node modules (if using web frontend)
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Frontend build
+web/dist/
+web/build/
+web-new/dist/
+web-new/node_modules/
+
+# TypeScript build info (generated files)
+tsconfig.tsbuildinfo
+web-new/tsconfig.tsbuildinfo
+
+# Backup files
+*.backup
+*.old
+
+# OS specific
+Thumbs.db
+.DS_Store
+desktop.ini
+nul  

@@ -1,0 +1,30 @@
+version: "2"
+
+linters:
+  default: none
+  enable:
+    - errcheck
+    - gosec
+    - staticcheck
+
+  settings:
+    gosec:
+      excludes:
+        - G101  # Hardcoded credentials (false positives on const names)
+        - G115  # Integer overflow (many false positives)
+        - G201  # SQL formatting (we use parameterized queries)
+        - G302  # File permissions (acceptable for logs)
+        - G304  # File inclusion (path is validated)
+        - G505  # crypto/sha1 (used for backward compat)
+
+    staticcheck:
+      checks:
+        - "all"
+        - "-SA1019"  # Deprecated API (will fix later)
+        - "-SA9003"  # Empty branches (style)
+        - "-ST*"     # Style checks (will fix later)
+        - "-QF*"     # Quick fixes (style)
+
+run:
+  timeout: 10m
+  tests: false
