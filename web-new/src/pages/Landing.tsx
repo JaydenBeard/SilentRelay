@@ -46,7 +46,7 @@ export default function LandingPage() {
   useScrollAnimations();
 
   return (
-    <div className="min-h-screen bg-background snap-y snap-proximity overflow-y-scroll overflow-x-hidden h-screen">
+    <div className="min-h-screen bg-background snap-y snap-proximity overflow-y-scroll h-screen w-full max-w-[100vw] overflow-x-hidden">
       {/* Navigation */}
       <nav className="sticky top-0 z-50 bg-background/80 backdrop-blur-lg border-b border-border">
         <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
@@ -340,19 +340,19 @@ export default function LandingPage() {
       </section>
 
       {/* Comparison Section */}
-      <section id="compare" className="relative py-24 px-6 snap-start min-h-screen flex items-center overflow-x-hidden">
-        <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-16 animate-on-scroll fade-up">
+      <section id="compare" className="relative py-24 px-4 sm:px-6 snap-start min-h-screen flex items-center w-full max-w-[100vw]">
+        <div className="w-full max-w-7xl mx-auto overflow-hidden">
+          <div className="text-center mb-16 animate-on-scroll fade-up px-2">
             <h2 className="text-3xl md:text-4xl font-bold mb-4">
               How we compare
             </h2>
-            <p className="text-lg text-foreground-secondary max-w-2xl mx-auto">
+            <p className="text-base sm:text-lg text-foreground-secondary max-w-2xl mx-auto">
               Not all encrypted messaging is created equal. See how SilentRelay stacks up.
             </p>
           </div>
 
-          <div className="overflow-x-auto overflow-y-hidden -mx-6 px-6 animate-on-scroll fade-up delay-200">
-            <table className="w-full min-w-[540px]">
+          <div className="overflow-x-auto pb-4 animate-on-scroll fade-up delay-200">
+            <table className="w-full min-w-[600px]">
               <thead>
                 <tr className="border-b border-border">
                   <th className="text-left py-4 px-4 font-medium">Feature</th>
