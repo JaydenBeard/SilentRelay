@@ -247,7 +247,21 @@ function PinStep({ onNext }: PinStepProps) {
     setIsSettingUp(true);
 
     try {
+      // Set up local encryption
       await signalProtocol.setupEncryption(pin);
+
+      // Upload new public keys to server (triggers identity_key_changed notification to contacts)
+      try {
+        const publicKeys = await signalProtocol.getPublicKeysForServer();
+        if (publicKeys) {
+          await users.updateKeys(publicKeys);
+          console.log('[Onboarding] Uploaded new encryption keys to server');
+        }
+      } catch (uploadError) {
+        // Don't fail onboarding if key upload fails - keys will sync later
+        console.warn('[Onboarding] Failed to upload keys to server:', uploadError);
+      }
+
       onNext();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to set up encryption');
@@ -493,8 +507,8 @@ export function Onboarding() {
           <p className="text-center text-xs text-foreground-muted mt-4 pb-4">
             Step {
               onboardingStep === 'username' ? '1' :
-              onboardingStep === 'pin' ? '2' :
-              onboardingStep === 'recovery' ? '3' : '1'
+                onboardingStep === 'pin' ? '2' :
+                  onboardingStep === 'recovery' ? '3' : '1'
             } of 3
           </p>
         </div>

@@ -372,12 +372,12 @@ export class SignalProtocol {
         console.log('No Olm account found, creating new identity for this device');
         this.account = new Olm.Account();
         this.account.create();
-        
+
         // Generate registration and device IDs
         this.registrationId = Math.floor(Math.random() * 16380) + 1;
         this.deviceId = 1;
         this.oneTimeKeysCounter = 0;
-        
+
         await set(REGISTRATION_ID, this.registrationId);
         await set(DEVICE_ID, this.deviceId);
         await set(ONE_TIME_KEYS_COUNTER, this.oneTimeKeysCounter);
@@ -595,7 +595,7 @@ export class SignalProtocol {
       for (let i = 0; i < keyIdBytes.length; i++) {
         numericKeyId = (numericKeyId << 8) | keyIdBytes[i];
       }
-      
+
       preKeys.push({
         keyId: numericKeyId,
         publicKey: base64ToUint8Array(keyValue),
@@ -690,7 +690,7 @@ export class SignalProtocol {
 
     const ciphertextStr = uint8ArrayToString(ciphertext);
     let session = await this.loadSession(senderId, deviceId);
-    
+
     if (!session && messageType === 'prekey') {
       // Create inbound session from pre-key message
       session = new Olm.Session();
@@ -736,6 +736,33 @@ export class SignalProtocol {
 
     const identityKeys: OlmIdentityKeys = JSON.parse(this.account.identity_keys());
     return base64ToUint8Array(identityKeys.ed25519);
+  }
+
+  /**
+   * Get public keys in the format needed for server upload
+   * Used when setting up encryption on a new device to notify contacts
+   */
+  async getPublicKeysForServer(): Promise<{
+    publicIdentityKey: string;
+    publicSignedPrekey: string;
+    signedPrekeySignature: string;
+  } | null> {
+    await this.ensureInitialized();
+    if (!this.account) return null;
+
+    const identityKeys: OlmIdentityKeys = JSON.parse(this.account.identity_keys());
+
+    // In Olm, we use the curve25519 key as both identity and signed prekey
+    // The ed25519 key is used for signing
+    // Create a signature of the curve25519 key using ed25519
+    const curve25519Key = identityKeys.curve25519;
+    const signature = this.account.sign(curve25519Key);
+
+    return {
+      publicIdentityKey: identityKeys.curve25519,
+      publicSignedPrekey: identityKeys.curve25519, // Same key in Olm
+      signedPrekeySignature: signature,
+    };
   }
 
   /**
