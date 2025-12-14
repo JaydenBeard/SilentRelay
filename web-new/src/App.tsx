@@ -9,6 +9,7 @@ import ChatPage from '@/pages/Chat';
 import PrivacyPolicy from '@/pages/legal/PrivacyPolicy';
 import TermsOfService from '@/pages/legal/TermsOfService';
 import SecurityPolicy from '@/pages/legal/SecurityPolicy';
+import DevShowcase from '@/pages/DevShowcase';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated } = useAuthStore();
@@ -34,7 +35,7 @@ function App() {
   // Apply theme setting
   useEffect(() => {
     const root = document.documentElement;
-    
+
     if (app.theme === 'system') {
       const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
       root.classList.toggle('dark', prefersDark);
@@ -74,6 +75,7 @@ function App() {
         <Route path="/privacy" element={<PrivacyPolicy />} />
         <Route path="/terms" element={<TermsOfService />} />
         <Route path="/security" element={<SecurityPolicy />} />
+        <Route path="/dev" element={<DevShowcase />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
       <Toaster />
