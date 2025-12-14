@@ -84,6 +84,7 @@ export function ActiveCall() {
   const { currentCall, localStream, remoteStream, isMuted, isVideoOff } = useCallStore();
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
+  const remoteAudioRef = useRef<HTMLAudioElement>(null);
   const [callDuration, setCallDuration] = useState(0);
 
   // Attach streams to video elements
@@ -93,9 +94,15 @@ export function ActiveCall() {
     }
   }, [localStream]);
 
+  // Attach remote stream to both video and audio elements
   useEffect(() => {
-    if (remoteVideoRef.current && remoteStream) {
-      remoteVideoRef.current.srcObject = remoteStream;
+    if (remoteStream) {
+      if (remoteVideoRef.current) {
+        remoteVideoRef.current.srcObject = remoteStream;
+      }
+      if (remoteAudioRef.current) {
+        remoteAudioRef.current.srcObject = remoteStream;
+      }
     }
   }, [remoteStream]);
 
@@ -154,6 +161,9 @@ export function ActiveCall() {
 
   return (
     <div className="fixed inset-0 z-50 bg-background flex flex-col">
+      {/* Hidden audio element for remote audio playback */}
+      <audio ref={remoteAudioRef} autoPlay playsInline />
+
       {/* Video Area */}
       {isVideoCall ? (
         <div className="flex-1 relative bg-black">
