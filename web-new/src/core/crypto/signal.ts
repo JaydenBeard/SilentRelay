@@ -691,6 +691,33 @@ export class SignalProtocol {
     const ciphertextStr = uint8ArrayToString(ciphertext);
     let session = await this.loadSession(senderId, deviceId);
 
+    // If we have an existing session but message is prekey, the sender may have reset their keys
+    // Try creating a new session from the prekey message
+    if (session && messageType === 'prekey') {
+      console.log('[Signal] Received prekey message from existing session - contact may have reset keys');
+      // Try with new session first
+      try {
+        const newSession = new Olm.Session();
+        newSession.create_inbound(this.account, ciphertextStr);
+
+        // New session worked, use it
+        this.account.remove_one_time_keys(newSession);
+        await this.saveAccount();
+
+        const plaintext = newSession.decrypt(0, ciphertextStr);
+
+        // Replace old session with new one
+        session.free();
+        await this.storeSession(senderId, deviceId, newSession);
+
+        console.log('[Signal] Successfully created new session from prekey message');
+        return plaintext;
+      } catch (prekeyError) {
+        // New session failed, try with existing session
+        console.log('[Signal] New session failed, trying existing session');
+      }
+    }
+
     if (!session && messageType === 'prekey') {
       // Create inbound session from pre-key message
       session = new Olm.Session();
@@ -708,12 +735,47 @@ export class SignalProtocol {
     // Decrypt the message
     // Olm message types: 0 = prekey message, 1 = normal message
     const olmMsgType = messageType === 'prekey' ? 0 : 1;
-    const plaintext = session.decrypt(olmMsgType, ciphertextStr);
 
-    // Save session state after decryption (ratchet has advanced)
-    await this.storeSession(senderId, deviceId, session);
+    try {
+      const plaintext = session.decrypt(olmMsgType, ciphertextStr);
 
-    return plaintext;
+      // Save session state after decryption (ratchet has advanced)
+      await this.storeSession(senderId, deviceId, session);
+
+      return plaintext;
+    } catch (decryptError) {
+      const errorMessage = decryptError instanceof Error ? decryptError.message : String(decryptError);
+
+      // BAD_MESSAGE_MAC means session is corrupted or out of sync
+      if (errorMessage.includes('BAD_MESSAGE_MAC') || errorMessage.includes('BAD_MESSAGE_KEY_ID')) {
+        console.warn('[Signal] Session corrupted, deleting and retrying...');
+
+        // Delete the corrupted session
+        session.free();
+        await this.deleteSession(senderId, deviceId);
+
+        // If this is a prekey message, try to create new session
+        if (messageType === 'prekey') {
+          console.log('[Signal] Retrying with new session from prekey message');
+          const newSession = new Olm.Session();
+          newSession.create_inbound(this.account, ciphertextStr);
+
+          this.account.remove_one_time_keys(newSession);
+          await this.saveAccount();
+
+          const plaintext = newSession.decrypt(0, ciphertextStr);
+          await this.storeSession(senderId, deviceId, newSession);
+
+          console.log('[Signal] Successfully recovered with new session');
+          return plaintext;
+        }
+
+        // For whisper messages, we can't recover - need sender to resend as prekey
+        throw new Error('Session corrupted and cannot be recovered. Contact needs to re-establish session.');
+      }
+
+      throw decryptError;
+    }
   }
 
   /**
