@@ -118,3 +118,6 @@ Thumbs.db
 .DS_Store
 desktop.ini
 nul  
+
+# iOS app (work in progress)
+SilentRelay-iOS/
