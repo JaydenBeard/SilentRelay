@@ -9,6 +9,7 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
@@ -565,6 +566,78 @@ func GetUserKeys(database *db.PostgresDB) http.HandlerFunc {
 
 		w.Header().Set("Content-Type", "application/json")
 		writeJSON(w, keys)
+	}
+}
+
+// UpdateKeys allows a user to update their encryption keys (e.g., when setting up a new device)
+// If the identity key changes, all contacts are notified via WebSocket
+// POST /api/v1/users/keys
+func UpdateKeys(database *db.PostgresDB, hub *websocket.Hub) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		userID, ok := middleware.GetUserID(r.Context())
+		if !ok {
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			return
+		}
+
+		var req struct {
+			PublicIdentityKey     string `json:"public_identity_key"`
+			PublicSignedPrekey    string `json:"public_signed_prekey"`
+			SignedPrekeySignature string `json:"signed_prekey_signature"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, "Invalid request body", http.StatusBadRequest)
+			return
+		}
+
+		// Validate required fields
+		if req.PublicIdentityKey == "" || req.PublicSignedPrekey == "" {
+			http.Error(w, "Missing required key fields", http.StatusBadRequest)
+			return
+		}
+
+		// Update keys in database
+		identityKeyChanged, err := database.UpdateUserKeys(userID, req.PublicIdentityKey, req.PublicSignedPrekey, req.SignedPrekeySignature)
+		if err != nil {
+			log.Printf("[Keys] Failed to update keys for user %s: %v", userID, err)
+			http.Error(w, "Failed to update keys", http.StatusInternalServerError)
+			return
+		}
+
+		// If identity key changed, notify all contacts
+		if identityKeyChanged {
+			log.Printf("[Security] Broadcasting identity_key_changed for user %s", userID)
+
+			// Get all users who have exchanged messages with this user
+			contacts, err := database.GetMessagedUsers(userID)
+			if err != nil {
+				log.Printf("[Security] Warning: failed to get contacts for identity notification: %v", err)
+			} else {
+				// Build the payload
+				payload, _ := json.Marshal(map[string]interface{}{
+					"user_id":          userID.String(),
+					"new_identity_key": req.PublicIdentityKey,
+				})
+
+				// Send notification to each contact
+				for _, contactID := range contacts {
+					msg := &models.WebSocketMessage{
+						Type:      "identity_key_changed",
+						SenderID:  userID,
+						Timestamp: time.Now().UTC(),
+						Payload:   payload,
+					}
+					hub.SendToUser(contactID.String(), msg)
+				}
+				log.Printf("[Security] Notified %d contacts about identity key change for user %s", len(contacts), userID)
+			}
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		writeJSON(w, map[string]interface{}{
+			"status":               "updated",
+			"identity_key_changed": identityKeyChanged,
+		})
 	}
 }
 

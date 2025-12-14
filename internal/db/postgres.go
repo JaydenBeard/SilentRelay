@@ -388,6 +388,46 @@ func (p *PostgresDB) GetUserKeys(userID uuid.UUID) (map[string]interface{}, erro
 	return result, nil
 }
 
+// UpdateUserKeys updates a user's public cryptographic keys
+// Returns true if the identity key changed (triggers security notification)
+// This is used when a user sets up encryption on a new device
+func (p *PostgresDB) UpdateUserKeys(userID uuid.UUID, identityKey, signedPrekey, signedPrekeySig string) (bool, error) {
+	// First, get the current identity key to check if it changed
+	var currentIdentityKey string
+	err := p.db.QueryRow(`SELECT public_identity_key FROM users WHERE user_id = $1`, userID).Scan(&currentIdentityKey)
+	if err != nil {
+		return false, fmt.Errorf("failed to get current identity key: %w", err)
+	}
+
+	// Check if identity key is actually changing
+	identityKeyChanged := currentIdentityKey != identityKey
+
+	// Update the keys
+	query := `
+		UPDATE users 
+		SET public_identity_key = $2, 
+		    public_signed_prekey = $3, 
+		    signed_prekey_signature = $4,
+		    last_seen = NOW()
+		WHERE user_id = $1`
+
+	result, err := p.db.Exec(query, userID, identityKey, signedPrekey, signedPrekeySig)
+	if err != nil {
+		return false, fmt.Errorf("failed to update keys: %w", err)
+	}
+
+	rowsAffected, _ := result.RowsAffected()
+	if rowsAffected == 0 {
+		return false, fmt.Errorf("user not found")
+	}
+
+	if identityKeyChanged {
+		log.Printf("[Security] Identity key changed for user %s", userID)
+	}
+
+	return identityKeyChanged, nil
+}
+
 // SavePreKeys stores a batch of one-time pre-keys
 func (p *PostgresDB) SavePreKeys(userID uuid.UUID, prekeys []struct {
 	ID        int

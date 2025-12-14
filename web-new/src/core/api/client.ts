@@ -225,6 +225,25 @@ export const users = {
       body: { preKeys },
     }),
 
+  /**
+   * Update encryption keys on the server
+   * Used when setting up fresh encryption on a new device
+   * This will trigger identity_key_changed notifications to all contacts
+   */
+  updateKeys: (data: {
+    publicIdentityKey: string;
+    publicSignedPrekey: string;
+    signedPrekeySignature: string;
+  }) =>
+    request<{ status: string; identity_key_changed: boolean }>('/users/keys', {
+      method: 'POST',
+      body: {
+        public_identity_key: data.publicIdentityKey,
+        public_signed_prekey: data.publicSignedPrekey,
+        signed_prekey_signature: data.signedPrekeySignature,
+      },
+    }),
+
   searchByUsername: (username: string) =>
     request<Array<{
       user_id: string;

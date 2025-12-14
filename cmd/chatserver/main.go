@@ -183,6 +183,7 @@ func main() {
 	protected.HandleFunc("/users/me", handlers.DeleteUser(database)).Methods("DELETE")
 	protected.HandleFunc("/users/me/prekeys", handlers.UploadPrekeys(database)).Methods("POST")
 	protected.HandleFunc("/users/{userId}/keys", handlers.GetUserKeys(database)).Methods("GET")
+	protected.HandleFunc("/users/keys", handlers.UpdateKeys(database, hub)).Methods("POST")
 	protected.HandleFunc("/users/{userId}/profile", handlers.GetUserProfile(database, redisClient)).Methods("GET")
 	protected.HandleFunc("/users/check-username/{username}", handlers.CheckUsername(database)).Methods("GET")
 	protected.Handle("/users/search", enhancedRateLimiter.Middleware(http.HandlerFunc(handlers.SearchUsers(database)))).Methods("GET")
