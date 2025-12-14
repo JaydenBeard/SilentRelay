@@ -31,11 +31,13 @@ type CallEventHandler = {
   onSignal: (signal: CallSignal) => void;
 };
 
-// Fallback ICE servers (STUN only)
+// Fallback ICE servers (STUN only - will NOT work for users behind symmetric NAT)
 const FALLBACK_ICE_SERVERS: RTCConfiguration = {
   iceServers: [
     { urls: 'stun:stun.l.google.com:19302' },
     { urls: 'stun:stun1.l.google.com:19302' },
+    { urls: 'stun:stun2.l.google.com:19302' },
+    { urls: 'stun:stun3.l.google.com:19302' },
   ],
 };
 
@@ -50,6 +52,7 @@ let cacheExpiry: number = 0;
 async function fetchIceServers(): Promise<RTCConfiguration> {
   // Return cached config if still valid (with 5 min buffer)
   if (cachedIceConfig && Date.now() < cacheExpiry - 300000) {
+    console.log('[WebRTC] Using cached ICE config');
     return cachedIceConfig;
   }
 
@@ -59,7 +62,7 @@ async function fetchIceServers(): Promise<RTCConfiguration> {
     const token = useAuthStore.getState().token;
 
     if (!token) {
-      console.warn('[WebRTC] No auth token, using fallback ICE servers');
+      console.warn('[WebRTC] No auth token, using fallback ICE servers (STUN only)');
       return FALLBACK_ICE_SERVERS;
     }
 
@@ -70,15 +73,29 @@ async function fetchIceServers(): Promise<RTCConfiguration> {
     });
 
     if (!response.ok) {
-      console.warn('[WebRTC] Failed to fetch TURN credentials, using fallback');
+      console.warn('[WebRTC] Failed to fetch TURN credentials (status:', response.status, '), using fallback STUN only');
       return FALLBACK_ICE_SERVERS;
     }
 
     const data = await response.json();
-    cachedIceConfig = { iceServers: data.iceServers };
-    cacheExpiry = Date.now() + (data.ttl * 1000); // TTL is in seconds
 
-    console.log('[WebRTC] Got TURN credentials, expires in', data.ttl, 'seconds');
+    // Log what we got for debugging
+    console.log('[WebRTC] Got ICE servers:', data.iceServers?.map((s: { urls: string }) => s.urls));
+
+    // Verify we have TURN servers
+    const hasTurn = data.iceServers?.some((s: { urls: string | string[] }) =>
+      (typeof s.urls === 'string' ? s.urls : s.urls[0])?.startsWith('turn:')
+    );
+
+    if (!hasTurn) {
+      console.warn('[WebRTC] ⚠️ No TURN servers returned! Calls may fail behind NAT');
+    } else {
+      console.log('[WebRTC] ✓ TURN server configured, expires in', data.ttl, 'seconds');
+    }
+
+    cachedIceConfig = { iceServers: data.iceServers };
+    cacheExpiry = Date.now() + (data.ttl * 1000);
+
     return cachedIceConfig;
   } catch (error) {
     console.error('[WebRTC] Error fetching TURN credentials:', error);
@@ -93,6 +110,7 @@ export class WebRTCService {
   private currentCall: CallState | null = null;
   private handlers: Partial<CallEventHandler> = {};
   private iceCandidateQueue: RTCIceCandidateInit[] = [];
+  private pendingOffer: RTCSessionDescriptionInit | null = null;
 
   /**
    * Set event handlers
@@ -135,6 +153,8 @@ export class WebRTCService {
       throw new Error('Already in a call');
     }
 
+    console.log('[WebRTC] Starting', callType, 'call to', peerId);
+
     const callId = crypto.randomUUID();
     this.currentCall = {
       callId,
@@ -149,27 +169,39 @@ export class WebRTCService {
     this.updateCallState(this.currentCall);
 
     try {
-      // Get local media
+      // Get local media FIRST
+      console.log('[WebRTC] Getting local media...');
       await this.getLocalMedia(callType);
+      console.log('[WebRTC] Got local media:',
+        'audio tracks:', this.localStream?.getAudioTracks().length,
+        'video tracks:', this.localStream?.getVideoTracks().length
+      );
 
-      // Create peer connection and offer
+      // Create peer connection
+      console.log('[WebRTC] Creating peer connection...');
       await this.createPeerConnection();
 
-      // Add local tracks to connection
+      // Add local tracks to connection BEFORE creating offer
       if (this.localStream && this.peerConnection) {
+        console.log('[WebRTC] Adding local tracks to peer connection...');
         this.localStream.getTracks().forEach(track => {
+          console.log('[WebRTC] Adding track:', track.kind, track.id);
           this.peerConnection!.addTrack(track, this.localStream!);
         });
       }
 
       // Create and send offer
+      console.log('[WebRTC] Creating offer...');
       const offer = await this.peerConnection!.createOffer({
         offerToReceiveAudio: true,
         offerToReceiveVideo: callType === 'video',
       });
+
+      console.log('[WebRTC] Setting local description...');
       await this.peerConnection!.setLocalDescription(offer);
 
       // Send offer through signaling
+      console.log('[WebRTC] Sending offer to peer...');
       this.handlers.onSignal?.({
         type: 'offer',
         callId,
@@ -177,6 +209,7 @@ export class WebRTCService {
         data: offer,
       });
     } catch (error) {
+      console.error('[WebRTC] Failed to start call:', error);
       this.endCall('failed');
       throw error;
     }
@@ -193,8 +226,10 @@ export class WebRTCService {
     callType: 'audio' | 'video',
     offer: RTCSessionDescriptionInit
   ): Promise<void> {
+    console.log('[WebRTC] Incoming', callType, 'call from', peerId);
+
     if (this.currentCall) {
-      // Already in a call, send busy signal
+      console.log('[WebRTC] Already in a call, sending busy signal');
       this.handlers.onSignal?.({
         type: 'hangup',
         callId,
@@ -214,14 +249,10 @@ export class WebRTCService {
       status: 'ringing',
     };
 
+    // Store the offer for when the user answers
+    this.pendingOffer = offer;
+
     this.updateCallState(this.currentCall);
-
-    // Store offer for when call is answered
-    await this.createPeerConnection();
-    await this.peerConnection!.setRemoteDescription(offer);
-
-    // Process queued ICE candidates
-    this.processIceCandidateQueue();
   }
 
   /**
@@ -232,35 +263,65 @@ export class WebRTCService {
       throw new Error('No incoming call to answer');
     }
 
-    if (!this.peerConnection) {
-      throw new Error('Peer connection not initialized');
+    if (!this.pendingOffer) {
+      throw new Error('No pending offer to answer');
     }
 
-    try {
-      // Get local media
-      await this.getLocalMedia(this.currentCall.type);
+    console.log('[WebRTC] Answering call...');
 
-      // Add local tracks
-      if (this.localStream) {
+    try {
+      // Get local media FIRST - before setting up WebRTC
+      console.log('[WebRTC] Getting local media...');
+      await this.getLocalMedia(this.currentCall.type);
+      console.log('[WebRTC] Got local media:',
+        'audio tracks:', this.localStream?.getAudioTracks().length,
+        'video tracks:', this.localStream?.getVideoTracks().length
+      );
+
+      // Create peer connection
+      console.log('[WebRTC] Creating peer connection...');
+      await this.createPeerConnection();
+
+      // Add local tracks BEFORE setting remote description
+      // This is critical for bidirectional media!
+      if (this.localStream && this.peerConnection) {
+        console.log('[WebRTC] Adding local tracks to peer connection...');
         this.localStream.getTracks().forEach(track => {
+          console.log('[WebRTC] Adding track:', track.kind, track.id);
           this.peerConnection!.addTrack(track, this.localStream!);
         });
       }
 
+      // Now set the remote description (the offer)
+      console.log('[WebRTC] Setting remote description (offer)...');
+      await this.peerConnection!.setRemoteDescription(this.pendingOffer);
+      this.pendingOffer = null;
+
+      // Process any queued ICE candidates
+      console.log('[WebRTC] Processing queued ICE candidates:', this.iceCandidateQueue.length);
+      this.processIceCandidateQueue();
+
       // Create and send answer
-      const answer = await this.peerConnection.createAnswer();
-      await this.peerConnection.setLocalDescription(answer);
+      console.log('[WebRTC] Creating answer...');
+      const answer = await this.peerConnection!.createAnswer();
+
+      console.log('[WebRTC] Setting local description (answer)...');
+      await this.peerConnection!.setLocalDescription(answer);
 
       this.currentCall.status = 'connecting';
       this.updateCallState(this.currentCall);
 
+      console.log('[WebRTC] Sending answer to peer...');
       this.handlers.onSignal?.({
         type: 'answer',
         callId: this.currentCall.callId,
         peerId: this.currentCall.peerId,
         data: answer,
       });
+
+      console.log('[WebRTC] Answer sent successfully');
     } catch (error) {
+      console.error('[WebRTC] Failed to answer call:', error);
       this.endCall('failed');
       throw error;
     }
@@ -274,12 +335,14 @@ export class WebRTCService {
       return;
     }
 
+    console.log('[WebRTC] Declining call');
     this.handlers.onSignal?.({
       type: 'hangup',
       callId: this.currentCall.callId,
       peerId: this.currentCall.peerId,
     });
 
+    this.pendingOffer = null;
     this.endCall('declined');
   }
 
@@ -288,36 +351,50 @@ export class WebRTCService {
    */
   async handleAnswer(answer: RTCSessionDescriptionInit): Promise<void> {
     if (!this.peerConnection || !this.currentCall) {
+      console.warn('[WebRTC] Received answer but no peer connection');
       return;
     }
 
-    await this.peerConnection.setRemoteDescription(answer);
-    this.currentCall.status = 'connecting';
-    this.updateCallState(this.currentCall);
+    console.log('[WebRTC] Received answer, setting remote description...');
+    try {
+      await this.peerConnection.setRemoteDescription(answer);
+      console.log('[WebRTC] Remote description set successfully');
 
-    // Process queued ICE candidates
-    this.processIceCandidateQueue();
+      this.currentCall.status = 'connecting';
+      this.updateCallState(this.currentCall);
+
+      // Process queued ICE candidates now that we have remote description
+      console.log('[WebRTC] Processing queued ICE candidates:', this.iceCandidateQueue.length);
+      this.processIceCandidateQueue();
+    } catch (error) {
+      console.error('[WebRTC] Failed to set remote description:', error);
+      this.endCall('failed');
+    }
   }
 
   /**
    * Handle ICE candidate from remote peer
    */
   async handleIceCandidate(candidate: RTCIceCandidateInit): Promise<void> {
+    console.log('[WebRTC] Received ICE candidate:', candidate.candidate?.substring(0, 50) + '...');
+
     if (!this.peerConnection) {
-      // Queue candidate if connection not ready
+      console.log('[WebRTC] Queuing ICE candidate (no peer connection yet)');
       this.iceCandidateQueue.push(candidate);
       return;
     }
 
     if (!this.peerConnection.remoteDescription) {
+      console.log('[WebRTC] Queuing ICE candidate (no remote description yet)');
       this.iceCandidateQueue.push(candidate);
       return;
     }
 
     try {
       await this.peerConnection.addIceCandidate(candidate);
+      console.log('[WebRTC] Added ICE candidate successfully');
     } catch (error) {
-      console.error('Failed to add ICE candidate:', error);
+      console.error('[WebRTC] Failed to add ICE candidate:', error);
     }
   }
 
@@ -325,6 +402,7 @@ export class WebRTCService {
    * Handle remote hangup
    */
   handleRemoteHangup(reason?: string): void {
+    console.log('[WebRTC] Remote hangup, reason:', reason);
     if (!this.currentCall) return;
 
     let endReason: CallState['endReason'] = 'completed';
@@ -341,6 +419,8 @@ export class WebRTCService {
    * End the current call
    */
   endCall(reason: CallState['endReason'] = 'completed'): void {
+    console.log('[WebRTC] Ending call, reason:', reason);
+
     if (this.currentCall && this.currentCall.status !== 'ended') {
       // Send hangup signal
       this.handlers.onSignal?.({
@@ -351,11 +431,20 @@ export class WebRTCService {
     }
 
     // Stop all tracks
-    this.localStream?.getTracks().forEach(track => track.stop());
-    this.remoteStream?.getTracks().forEach(track => track.stop());
+    this.localStream?.getTracks().forEach(track => {
+      console.log('[WebRTC] Stopping local track:', track.kind);
+      track.stop();
+    });
+    this.remoteStream?.getTracks().forEach(track => {
+      console.log('[WebRTC] Stopping remote track:', track.kind);
+      track.stop();
+    });
 
     // Close peer connection
-    this.peerConnection?.close();
+    if (this.peerConnection) {
+      console.log('[WebRTC] Closing peer connection');
+      this.peerConnection.close();
+    }
 
     // Update call state
     if (this.currentCall) {
@@ -371,6 +460,7 @@ export class WebRTCService {
     this.peerConnection = null;
     this.currentCall = null;
     this.iceCandidateQueue = [];
+    this.pendingOffer = null;
   }
 
   /**
@@ -382,7 +472,8 @@ export class WebRTCService {
     const audioTrack = this.localStream.getAudioTracks()[0];
     if (audioTrack) {
       audioTrack.enabled = !audioTrack.enabled;
-      return !audioTrack.enabled; // Return true if muted
+      console.log('[WebRTC] Audio muted:', !audioTrack.enabled);
+      return !audioTrack.enabled;
     }
     return false;
   }
@@ -396,7 +487,8 @@ export class WebRTCService {
     const videoTrack = this.localStream.getVideoTracks()[0];
     if (videoTrack) {
       videoTrack.enabled = !videoTrack.enabled;
-      return !videoTrack.enabled; // Return true if video off
+      console.log('[WebRTC] Video off:', !videoTrack.enabled);
+      return !videoTrack.enabled;
     }
     return false;
   }
@@ -410,25 +502,22 @@ export class WebRTCService {
     const videoTrack = this.localStream.getVideoTracks()[0];
     if (!videoTrack) return;
 
-    // Get current facing mode
     const settings = videoTrack.getSettings();
     const newFacingMode = settings.facingMode === 'user' ? 'environment' : 'user';
 
-    // Stop current track
+    console.log('[WebRTC] Switching camera to:', newFacingMode);
+
     videoTrack.stop();
 
-    // Get new video track
     const newStream = await navigator.mediaDevices.getUserMedia({
       video: { facingMode: newFacingMode },
     });
 
     const newVideoTrack = newStream.getVideoTracks()[0];
 
-    // Replace track in local stream
     this.localStream.removeTrack(videoTrack);
     this.localStream.addTrack(newVideoTrack);
 
-    // Replace track in peer connection
     const sender = this.peerConnection?.getSenders().find(s => s.track?.kind === 'video');
     if (sender) {
       await sender.replaceTrack(newVideoTrack);
@@ -439,66 +528,180 @@ export class WebRTCService {
 
   private async getLocalMedia(callType: 'audio' | 'video'): Promise<void> {
     const constraints: MediaStreamConstraints = {
-      audio: true,
-      video: callType === 'video' ? { facingMode: 'user' } : false,
+      audio: {
+        echoCancellation: true,
+        noiseSuppression: true,
+        autoGainControl: true,
+      },
+      video: callType === 'video' ? {
+        facingMode: 'user',
+        width: { ideal: 1280 },
+        height: { ideal: 720 },
+      } : false,
     };
 
-    this.localStream = await navigator.mediaDevices.getUserMedia(constraints);
+    console.log('[WebRTC] Requesting media with constraints:', JSON.stringify(constraints));
+
+    try {
+      this.localStream = await navigator.mediaDevices.getUserMedia(constraints);
+
+      // Log track details
+      this.localStream.getTracks().forEach(track => {
+        console.log('[WebRTC] Got track:', track.kind,
+          'enabled:', track.enabled,
+          'muted:', track.muted,
+          'readyState:', track.readyState
+        );
+      });
+    } catch (error) {
+      console.error('[WebRTC] Failed to get user media:', error);
+      throw error;
+    }
   }
 
   private async createPeerConnection(): Promise<void> {
     const iceConfig = await fetchIceServers();
+
+    console.log('[WebRTC] Creating RTCPeerConnection with config:',
+      iceConfig.iceServers?.map(s => typeof s.urls === 'string' ? s.urls : s.urls?.[0])
+    );
+
     this.peerConnection = new RTCPeerConnection(iceConfig);
 
     // Handle ICE candidates
     this.peerConnection.onicecandidate = (event) => {
       if (event.candidate && this.currentCall) {
+        // Log candidate type for debugging
+        const candidateStr = event.candidate.candidate;
+        const type = candidateStr.includes('typ host') ? 'host' :
+          candidateStr.includes('typ srflx') ? 'srflx (STUN)' :
+            candidateStr.includes('typ relay') ? 'relay (TURN)' : 'unknown';
+        console.log('[WebRTC] ICE candidate:', type);
+
         this.handlers.onSignal?.({
           type: 'candidate',
           callId: this.currentCall.callId,
           peerId: this.currentCall.peerId,
           data: event.candidate.toJSON(),
         });
+      } else if (event.candidate === null) {
+        console.log('[WebRTC] ICE gathering complete');
       }
+    };
+
+    // Handle ICE connection state changes
+    this.peerConnection.oniceconnectionstatechange = () => {
+      console.log('[WebRTC] ICE connection state:', this.peerConnection?.iceConnectionState);
+
+      if (this.peerConnection?.iceConnectionState === 'failed') {
+        console.error('[WebRTC] ICE connection failed! This usually means:');
+        console.error('[WebRTC] - TURN server not configured or unreachable');
+        console.error('[WebRTC] - Firewall blocking UDP/TCP');
+        console.error('[WebRTC] - NAT traversal failed');
+      }
+    };
+
+    // Handle ICE gathering state changes
+    this.peerConnection.onicegatheringstatechange = () => {
+      console.log('[WebRTC] ICE gathering state:', this.peerConnection?.iceGatheringState);
     };
 
     // Handle connection state changes
     this.peerConnection.onconnectionstatechange = () => {
+      console.log('[WebRTC] Connection state:', this.peerConnection?.connectionState);
+
       if (!this.currentCall || !this.peerConnection) return;
 
       switch (this.peerConnection.connectionState) {
         case 'connected':
+          console.log('[WebRTC] ✓ Call connected successfully!');
           this.currentCall.status = 'connected';
           this.currentCall.startTime = Date.now();
           this.updateCallState(this.currentCall);
           break;
         case 'disconnected':
+          console.warn('[WebRTC] Connection disconnected');
+          // Don't immediately fail - could be temporary
+          break;
         case 'failed':
+          console.error('[WebRTC] Connection failed');
           this.endCall('failed');
           break;
         case 'closed':
+          console.log('[WebRTC] Connection closed');
           this.endCall('completed');
           break;
       }
     };
 
-    // Handle remote stream
+    // Handle remote tracks
     this.peerConnection.ontrack = (event) => {
+      console.log('[WebRTC] Received remote track:',
+        event.track.kind,
+        'enabled:', event.track.enabled,
+        'muted:', event.track.muted,
+        'readyState:', event.track.readyState
+      );
+
       if (!this.remoteStream) {
         this.remoteStream = new MediaStream();
       }
+
+      // Add track to remote stream
       this.remoteStream.addTrack(event.track);
+
+      // Log all tracks in remote stream
+      console.log('[WebRTC] Remote stream now has:',
+        'audio tracks:', this.remoteStream.getAudioTracks().length,
+        'video tracks:', this.remoteStream.getVideoTracks().length
+      );
+
+      // Notify handler
       this.handlers.onRemoteStream?.(this.remoteStream);
+
+      // Handle track ending
+      event.track.onended = () => {
+        console.log('[WebRTC] Remote track ended:', event.track.kind);
+      };
+
+      // Handle track muted/unmuted
+      event.track.onmute = () => {
+        console.log('[WebRTC] Remote track muted:', event.track.kind);
+      };
+
+      event.track.onunmute = () => {
+        console.log('[WebRTC] Remote track unmuted:', event.track.kind);
+      };
+    };
+
+    // Handle negotiation needed (for renegotiation)
+    this.peerConnection.onnegotiationneeded = () => {
+      console.log('[WebRTC] Negotiation needed');
+    };
+
+    // Handle signaling state changes
+    this.peerConnection.onsignalingstatechange = () => {
+      console.log('[WebRTC] Signaling state:', this.peerConnection?.signalingState);
     };
   }
 
   private processIceCandidateQueue(): void {
-    if (!this.peerConnection?.remoteDescription) return;
+    if (!this.peerConnection?.remoteDescription) {
+      console.log('[WebRTC] Cannot process ICE queue - no remote description');
+      return;
+    }
+
+    const queueLength = this.iceCandidateQueue.length;
+    if (queueLength > 0) {
+      console.log('[WebRTC] Processing', queueLength, 'queued ICE candidates');
+    }
 
     while (this.iceCandidateQueue.length > 0) {
       const candidate = this.iceCandidateQueue.shift();
       if (candidate) {
-        this.peerConnection.addIceCandidate(candidate).catch(console.error);
+        this.peerConnection.addIceCandidate(candidate)
+          .then(() => console.log('[WebRTC] Added queued ICE candidate'))
+          .catch(err => console.error('[WebRTC] Failed to add queued candidate:', err));
       }
     }
   }
