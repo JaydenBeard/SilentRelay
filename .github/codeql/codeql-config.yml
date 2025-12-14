@@ -1,0 +1,10 @@
+name: "SilentRelay CodeQL Config"
+
+# Exclude test files from security scanning
+# Test files contain intentional mock implementations that trigger false positives
+paths-ignore:
+  - 'tests/**'
+  - 'scripts/test-*.js'
+  - '**/*.test.js'
+  - '**/*.test.ts'
+  - '**/*_test.go'
