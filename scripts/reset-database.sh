@@ -7,6 +7,14 @@
 
 set -e
 
+# Get the directory where this script is located
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Project root is parent of scripts directory
+PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+
+# Change to project root for docker compose commands
+cd "$PROJECT_ROOT"
+
 echo "⚠️  WARNING: This will permanently delete ALL data from the database!"
 echo "   - All user accounts"
 echo "   - All messages and chats"

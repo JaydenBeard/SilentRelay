@@ -81,7 +81,13 @@ fi
 # Stop services that use the database
 echo ""
 echo -e "${YELLOW}⏳ Stopping dependent services...${NC}"
-cd /opt/silentrelay
+
+# Get the directory where this script is located
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Project root is parent of scripts directory
+PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+cd "$PROJECT_ROOT"
+
 docker compose stop chat-server-1 chat-server-2 group-service presence-service scheduler queue-worker 2>/dev/null || true
 echo -e "${GREEN}✅ Services stopped${NC}"
 
