@@ -213,7 +213,7 @@ Yes, SilentRelay is designed for self-hosting. See the [deployment guide](../DEP
 
 1. Check this FAQ
 2. Review the [Troubleshooting Guide](troubleshooting.md)
-3. Search existing [GitHub Issues](https://github.com/JaydenBeard/end2endsecure.com/issues)
+3. Search existing [GitHub Issues](https://github.com/JaydenBeard/SilentRelay/issues)
 4. Contact your server administrator
 5. Open a new issue if you found a bug
 

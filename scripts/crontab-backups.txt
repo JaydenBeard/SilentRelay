@@ -12,22 +12,22 @@
 # ========================================
 # Creates a compressed PostgreSQL backup
 # Keeps last 30 days of backups
-0 2 * * * /opt/end2endsecure.com/scripts/backup-db.sh >> /var/log/silentrelay-backup.log 2>&1
+0 2 * * * /opt/silentrelay/scripts/backup-db.sh >> /var/log/silentrelay-backup.log 2>&1
 
 # ========================================
 # WEEKLY FULL BACKUP WITH S3 UPLOAD (Sunday 3:00 AM)
 # ========================================
 # Same as daily but also uploads to S3/MinIO for offsite storage
-0 3 * * 0 /opt/end2endsecure.com/scripts/backup-db.sh --upload-s3 >> /var/log/silentrelay-backup.log 2>&1
+0 3 * * 0 /opt/silentrelay/scripts/backup-db.sh --upload-s3 >> /var/log/silentrelay-backup.log 2>&1
 
 # ========================================
 # MONTHLY BACKUP VERIFICATION (1st of month, 4:00 AM)
 # ========================================
 # Tests the most recent backup can be read
-0 4 1 * * /opt/end2endsecure.com/scripts/verify-backup.sh >> /var/log/silentrelay-backup.log 2>&1
+0 4 1 * * /opt/silentrelay/scripts/verify-backup.sh >> /var/log/silentrelay-backup.log 2>&1
 
 # ========================================
 # DISK SPACE CHECK (Every 6 hours)
 # ========================================
 # Alerts if disk space is low
-0 */6 * * * df -h /opt/end2endsecure.com/backups | grep -v Filesystem | awk '{if (int($5) > 80) print "WARNING: Backup disk is " $5 " full"}' >> /var/log/silentrelay-backup.log 2>&1
+0 */6 * * * df -h /opt/silentrelay/backups | grep -v Filesystem | awk '{if (int($5) > 80) print "WARNING: Backup disk is " $5 " full"}' >> /var/log/silentrelay-backup.log 2>&1

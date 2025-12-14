@@ -14,7 +14,7 @@ BLUE='\033[0;34m'
 NC='\033[0m'
 
 SERVER="silentrelay.com.au"
-REMOTE_PATH="/root/end2endsecure"
+REMOTE_PATH="/root/SilentRelay"
 
 echo ""
 echo -e "${BLUE}🚀 Deploying to Production: ${SERVER}${NC}"

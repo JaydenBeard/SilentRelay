@@ -452,60 +452,60 @@ export default function LandingPage() {
               title="Getting Started"
               description="Quick setup guide for development and deployment"
               links={[
-                { name: "README", url: "https://github.com/JaydenBeard/end2endsecure.com/blob/main/README.md" },
-                { name: "Quick Start", url: "https://github.com/JaydenBeard/end2endsecure.com/blob/main/QUICKSTART.md" },
-                { name: "Environment Setup", url: "https://github.com/JaydenBeard/end2endsecure.com/blob/main/ENVIRONMENT_SETUP.md" },
+                { name: "README", url: "https://github.com/JaydenBeard/SilentRelay/blob/main/README.md" },
+                { name: "Quick Start", url: "https://github.com/JaydenBeard/SilentRelay/blob/main/QUICKSTART.md" },
+                { name: "Environment Setup", url: "https://github.com/JaydenBeard/SilentRelay/blob/main/ENVIRONMENT_SETUP.md" },
               ]}
             />
             <DocCard
               title="Security Architecture"
               description="Deep dive into our encryption and security measures"
               links={[
-                { name: "Security Overview", url: "https://github.com/JaydenBeard/end2endsecure.com/blob/main/docs/SECURITY.md" },
-                { name: "Threat Model", url: "https://github.com/JaydenBeard/end2endsecure.com/blob/main/docs/THREAT_MODEL.md" },
-                { name: "Crypto Implementation", url: "https://github.com/JaydenBeard/end2endsecure.com/blob/main/docs/CRYPTO_IMPLEMENTATION.md" },
-                { name: "Key Rotation", url: "https://github.com/JaydenBeard/end2endsecure.com/blob/main/docs/KEY_ROTATION_IMPLEMENTATION.md" },
+                { name: "Security Overview", url: "https://github.com/JaydenBeard/SilentRelay/blob/main/docs/SECURITY.md" },
+                { name: "Threat Model", url: "https://github.com/JaydenBeard/SilentRelay/blob/main/docs/THREAT_MODEL.md" },
+                { name: "Crypto Implementation", url: "https://github.com/JaydenBeard/SilentRelay/blob/main/docs/CRYPTO_IMPLEMENTATION.md" },
+                { name: "Key Rotation", url: "https://github.com/JaydenBeard/SilentRelay/blob/main/docs/KEY_ROTATION_IMPLEMENTATION.md" },
               ]}
             />
             <DocCard
               title="API Documentation"
               description="Complete API reference for developers"
               links={[
-                { name: "API Index", url: "https://github.com/JaydenBeard/end2endsecure.com/blob/main/docs/API_DOCUMENTATION_INDEX.md" },
-                { name: "Authentication", url: "https://github.com/JaydenBeard/end2endsecure.com/blob/main/docs/API_AUTHENTICATION.md" },
-                { name: "Messages API", url: "https://github.com/JaydenBeard/end2endsecure.com/blob/main/docs/API_MESSAGES.md" },
-                { name: "WebSocket API", url: "https://github.com/JaydenBeard/end2endsecure.com/blob/main/docs/API_WEBSOCKET.md" },
-                { name: "Device Management", url: "https://github.com/JaydenBeard/end2endsecure.com/blob/main/docs/API_DEVICES.md" },
+                { name: "API Index", url: "https://github.com/JaydenBeard/SilentRelay/blob/main/docs/API_DOCUMENTATION_INDEX.md" },
+                { name: "Authentication", url: "https://github.com/JaydenBeard/SilentRelay/blob/main/docs/API_AUTHENTICATION.md" },
+                { name: "Messages API", url: "https://github.com/JaydenBeard/SilentRelay/blob/main/docs/API_MESSAGES.md" },
+                { name: "WebSocket API", url: "https://github.com/JaydenBeard/SilentRelay/blob/main/docs/API_WEBSOCKET.md" },
+                { name: "Device Management", url: "https://github.com/JaydenBeard/SilentRelay/blob/main/docs/API_DEVICES.md" },
               ]}
             />
             <DocCard
               title="Deployment & Operations"
               description="Production deployment and maintenance guides"
               links={[
-                { name: "Deployment Guide", url: "https://github.com/JaydenBeard/end2endsecure.com/blob/main/DEPLOY.md" },
-                { name: "Monitoring Setup", url: "https://github.com/JaydenBeard/end2endsecure.com/blob/main/docs/MONITORING_SETUP_GUIDE.md" },
-                { name: "Backup Strategy", url: "https://github.com/JaydenBeard/end2endsecure.com/blob/main/docs/BACKUP_STRATEGY_GUIDE.md" },
-                { name: "Maintenance", url: "https://github.com/JaydenBeard/end2endsecure.com/blob/main/docs/MAINTENANCE_PROCEDURES.md" },
+                { name: "Deployment Guide", url: "https://github.com/JaydenBeard/SilentRelay/blob/main/DEPLOY.md" },
+                { name: "Monitoring Setup", url: "https://github.com/JaydenBeard/SilentRelay/blob/main/docs/MONITORING_SETUP_GUIDE.md" },
+                { name: "Backup Strategy", url: "https://github.com/JaydenBeard/SilentRelay/blob/main/docs/BACKUP_STRATEGY_GUIDE.md" },
+                { name: "Maintenance", url: "https://github.com/JaydenBeard/SilentRelay/blob/main/docs/MAINTENANCE_PROCEDURES.md" },
               ]}
             />
             <DocCard
               title="Security Operations"
               description="Incident response, auditing, and compliance"
               links={[
-                { name: "Incident Response", url: "https://github.com/JaydenBeard/end2endsecure.com/blob/main/docs/INCIDENT_RESPONSE_PLAYBOOK.md" },
-                { name: "Security Testing", url: "https://github.com/JaydenBeard/end2endsecure.com/blob/main/docs/SECURITY_TESTING_PROCEDURES.md" },
-                { name: "Audit Logging", url: "https://github.com/JaydenBeard/end2endsecure.com/blob/main/docs/AUDIT_LOGGING.md" },
-                { name: "Bug Bounty", url: "https://github.com/JaydenBeard/end2endsecure.com/blob/main/docs/BUG_BOUNTY.md" },
+                { name: "Incident Response", url: "https://github.com/JaydenBeard/SilentRelay/blob/main/docs/INCIDENT_RESPONSE_PLAYBOOK.md" },
+                { name: "Security Testing", url: "https://github.com/JaydenBeard/SilentRelay/blob/main/docs/SECURITY_TESTING_PROCEDURES.md" },
+                { name: "Audit Logging", url: "https://github.com/JaydenBeard/SilentRelay/blob/main/docs/AUDIT_LOGGING.md" },
+                { name: "Bug Bounty", url: "https://github.com/JaydenBeard/SilentRelay/blob/main/docs/BUG_BOUNTY.md" },
               ]}
             />
             <DocCard
               title="Advanced Topics"
               description="Post-quantum crypto, supply chain security, and more"
               links={[
-                { name: "Post-Quantum Migration", url: "https://github.com/JaydenBeard/end2endsecure.com/blob/main/docs/POST_QUANTUM_MIGRATION_PLAN.md" },
-                { name: "Supply Chain Security", url: "https://github.com/JaydenBeard/end2endsecure.com/blob/main/docs/SUPPLY_CHAIN_SECURITY.md" },
-                { name: "Honeypot System", url: "https://github.com/JaydenBeard/end2endsecure.com/blob/main/docs/HONEYPOT_SYSTEM_DOCUMENTATION.md" },
-                { name: "Intrusion Detection", url: "https://github.com/JaydenBeard/end2endsecure.com/blob/main/docs/INTRUSION_DETECTION_SYSTEM.md" },
+                { name: "Post-Quantum Migration", url: "https://github.com/JaydenBeard/SilentRelay/blob/main/docs/POST_QUANTUM_MIGRATION_PLAN.md" },
+                { name: "Supply Chain Security", url: "https://github.com/JaydenBeard/SilentRelay/blob/main/docs/SUPPLY_CHAIN_SECURITY.md" },
+                { name: "Honeypot System", url: "https://github.com/JaydenBeard/SilentRelay/blob/main/docs/HONEYPOT_SYSTEM_DOCUMENTATION.md" },
+                { name: "Intrusion Detection", url: "https://github.com/JaydenBeard/SilentRelay/blob/main/docs/INTRUSION_DETECTION_SYSTEM.md" },
               ]}
             />
           </div>
@@ -531,13 +531,13 @@ export default function LandingPage() {
                 transparency beats security through obscurity every time.
               </p>
               <div className="flex flex-col sm:flex-row gap-4">
-                <a href="https://github.com/JaydenBeard/end2endsecure.com" target="_blank" rel="noopener noreferrer">
+                <a href="https://github.com/JaydenBeard/SilentRelay" target="_blank" rel="noopener noreferrer">
                   <Button variant="outline" className="inline-flex items-center gap-2">
                     <Github className="h-4 w-4" />
                     View Source Code
                   </Button>
                 </a>
-                <a href="https://github.com/JaydenBeard/end2endsecure.com/blob/main/docs/SECURITY_DOCUMENTATION_INDEX.md" target="_blank" rel="noopener noreferrer">
+                <a href="https://github.com/JaydenBeard/SilentRelay/blob/main/docs/SECURITY_DOCUMENTATION_INDEX.md" target="_blank" rel="noopener noreferrer">
                   <Button variant="ghost" className="inline-flex items-center gap-2">
                     <FileCode className="h-4 w-4" />
                     Security Documentation
@@ -634,12 +634,12 @@ export default function LandingPage() {
             <div>
               <h4 className="font-medium mb-4">Developers</h4>
               <ul className="space-y-2 text-sm text-foreground-secondary">
-                <li><a href="https://github.com/JaydenBeard/end2endsecure.com" target="_blank" rel="noopener noreferrer" className="hover:text-foreground transition-colors">GitHub Repository</a></li>
-                <li><a href="https://github.com/JaydenBeard/end2endsecure.com/blob/main/README.md" target="_blank" rel="noopener noreferrer" className="hover:text-foreground transition-colors">Getting Started</a></li>
-                <li><a href="https://github.com/JaydenBeard/end2endsecure.com/blob/main/docs/API_DOCUMENTATION_INDEX.md" target="_blank" rel="noopener noreferrer" className="hover:text-foreground transition-colors">API Documentation</a></li>
-                <li><a href="https://github.com/JaydenBeard/end2endsecure.com/blob/main/DEPLOY.md" target="_blank" rel="noopener noreferrer" className="hover:text-foreground transition-colors">Self-Hosting Guide</a></li>
-                <li><a href="https://github.com/JaydenBeard/end2endsecure.com/blob/main/docs/SECURITY.md" target="_blank" rel="noopener noreferrer" className="hover:text-foreground transition-colors">Security Architecture</a></li>
-                <li><a href="https://github.com/JaydenBeard/end2endsecure.com/blob/main/docs/THREAT_MODEL.md" target="_blank" rel="noopener noreferrer" className="hover:text-foreground transition-colors">Threat Model</a></li>
+                <li><a href="https://github.com/JaydenBeard/SilentRelay" target="_blank" rel="noopener noreferrer" className="hover:text-foreground transition-colors">GitHub Repository</a></li>
+                <li><a href="https://github.com/JaydenBeard/SilentRelay/blob/main/README.md" target="_blank" rel="noopener noreferrer" className="hover:text-foreground transition-colors">Getting Started</a></li>
+                <li><a href="https://github.com/JaydenBeard/SilentRelay/blob/main/docs/API_DOCUMENTATION_INDEX.md" target="_blank" rel="noopener noreferrer" className="hover:text-foreground transition-colors">API Documentation</a></li>
+                <li><a href="https://github.com/JaydenBeard/SilentRelay/blob/main/DEPLOY.md" target="_blank" rel="noopener noreferrer" className="hover:text-foreground transition-colors">Self-Hosting Guide</a></li>
+                <li><a href="https://github.com/JaydenBeard/SilentRelay/blob/main/docs/SECURITY.md" target="_blank" rel="noopener noreferrer" className="hover:text-foreground transition-colors">Security Architecture</a></li>
+                <li><a href="https://github.com/JaydenBeard/SilentRelay/blob/main/docs/THREAT_MODEL.md" target="_blank" rel="noopener noreferrer" className="hover:text-foreground transition-colors">Threat Model</a></li>
               </ul>
             </div>
             <div>

@@ -11,7 +11,7 @@ Push to `main` branch → GitHub Actions automatically:
 
 ### Manual Deployment
 ```bash
-cd /opt/end2endsecure.com
+cd /opt/silentrelay
 git pull origin main
 bash scripts/deploy.sh              # Full deploy (backend + frontend)
 bash scripts/deploy.sh --skip-frontend  # Backend only
@@ -92,16 +92,16 @@ bash scripts/backup-db.sh --upload-s3  # Backup + upload to S3/MinIO
 Add to crontab (`crontab -e`):
 ```cron
 # Daily backup at 2 AM
-0 2 * * * /opt/end2endsecure.com/scripts/backup-db.sh >> /var/log/silentrelay-backup.log 2>&1
+0 2 * * * /opt/silentrelay/scripts/backup-db.sh >> /var/log/silentrelay-backup.log 2>&1
 ```
 
 ### Restore from Backup
 ```bash
-bash scripts/restore-db.sh /opt/end2endsecure.com/backups/silentrelay_db_YYYYMMDD_HHMMSS.sql.gz
+bash scripts/restore-db.sh /opt/silentrelay/backups/silentrelay_db_YYYYMMDD_HHMMSS.sql.gz
 ```
 
 ### Backup Location
-- **Local**: `/opt/end2endsecure.com/backups/`
+- **Local**: `/opt/silentrelay/backups/`
 - **Retention**: 30 days (auto-cleanup)
 
 ---
@@ -174,7 +174,7 @@ docker exec -it $(docker ps -qf "name=redis") redis-cli
 
 | Service | URL |
 |---------|-----|
-| **App** | https://end2endsecure.com |
+| **App** | https://silentrelay.com.au |
 | **Grafana** | http://server-ip:3001 |
 | **Prometheus** | http://server-ip:9090 |
 | **Consul** | http://server-ip:8500 |

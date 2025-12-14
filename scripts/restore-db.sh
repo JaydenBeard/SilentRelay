@@ -39,7 +39,7 @@ if [ -z "$1" ]; then
     echo "Usage: $0 <backup_file>"
     echo ""
     echo "Available backups:"
-    ls -lh /opt/end2endsecure.com/backups/silentrelay_db_*.sql.gz 2>/dev/null || echo "  No backups found in /opt/end2endsecure.com/backups/"
+    ls -lh /opt/silentrelay/backups/silentrelay_db_*.sql.gz 2>/dev/null || echo "  No backups found in /opt/silentrelay/backups/"
     exit 1
 fi
 
@@ -81,7 +81,7 @@ fi
 # Stop services that use the database
 echo ""
 echo -e "${YELLOW}⏳ Stopping dependent services...${NC}"
-cd /opt/end2endsecure.com
+cd /opt/silentrelay
 docker compose stop chat-server-1 chat-server-2 group-service presence-service scheduler queue-worker 2>/dev/null || true
 echo -e "${GREEN}✅ Services stopped${NC}"
 

@@ -18,7 +18,7 @@ BLUE='\033[0;34m'
 NC='\033[0m'
 
 # Configuration
-BACKUP_DIR="${BACKUP_DIR:-/opt/end2endsecure.com/backups}"
+BACKUP_DIR="${BACKUP_DIR:-/opt/silentrelay/backups}"
 RETENTION_DAYS="${RETENTION_DAYS:-30}"
 DB_USER="${POSTGRES_USER:-messaging}"
 DB_NAME="${POSTGRES_DB:-messaging}"
