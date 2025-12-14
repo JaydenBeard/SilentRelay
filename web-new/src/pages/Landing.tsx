@@ -46,7 +46,7 @@ export default function LandingPage() {
   useScrollAnimations();
 
   return (
-    <div className="min-h-screen bg-background snap-y snap-proximity overflow-y-scroll h-screen">
+    <div className="min-h-screen bg-background snap-y snap-proximity overflow-y-scroll overflow-x-hidden h-screen">
       {/* Navigation */}
       <nav className="sticky top-0 z-50 bg-background/80 backdrop-blur-lg border-b border-border">
         <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
@@ -340,7 +340,7 @@ export default function LandingPage() {
       </section>
 
       {/* Comparison Section */}
-      <section id="compare" className="relative py-24 px-6 snap-start min-h-screen flex items-center">
+      <section id="compare" className="relative py-24 px-6 snap-start min-h-screen flex items-center overflow-x-hidden">
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-16 animate-on-scroll fade-up">
             <h2 className="text-3xl md:text-4xl font-bold mb-4">
