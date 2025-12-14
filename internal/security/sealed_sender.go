@@ -319,8 +319,14 @@ func (m *SealedSenderIdentityCertificateManager) CreateSealedSenderIdentityMessa
 	// Combine certificate and message content using proper format
 	// Format: [certificate_length:4][certificate_json][message_content]
 
+	// Security: Check for potential integer overflow before allocation
+	totalSize := 4 + len(certData) + len(messageContent)
+	if totalSize < 0 || totalSize > 100*1024*1024 { // Max 100MB to prevent DoS
+		return nil, errors.New("combined data size exceeds maximum allowed limit")
+	}
+
 	// Create buffer for certificate length (4 bytes) + certificate JSON + message content
-	combinedData := make([]byte, 4+len(certData)+len(messageContent))
+	combinedData := make([]byte, totalSize)
 
 	// Write certificate length (big-endian)
 	combinedData[0] = byte((len(certData) >> 24) & 0xFF)

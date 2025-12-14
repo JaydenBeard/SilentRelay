@@ -17,23 +17,33 @@ function sanitizeMessageContent(content) {
   }
 
   // Enhanced DOMPurify-like sanitization with comprehensive XSS protection
-  let sanitized = content
-    // Remove script tags
-    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
-    // Remove event handlers
-    .replace(/\bon\w+\s*=/gi, '')
-    // Remove javascript: URLs
-    .replace(/javascript:/gi, '')
-    // Remove data: URLs (except images)
-    .replace(/data:(?!image\/)/gi, '')
-    // Remove SVG with event handlers
-    .replace(/<svg\b[^>]*\bon\w+\s*=[^>]*>/gi, '')
-    // Allow only safe tags
-    .replace(/<[^>]+>/g, (tag) => {
-      const safeTags = ['b', 'i', 'strong', 'em', 'u', 's', 'br', 'p', 'span'];
-      const tagName = tag.match(/<(\w+)/)?.[1]?.toLowerCase() || '';
-      return safeTags.includes(tagName) ? tag : '';
-    });
+  // Using iterative sanitization to handle nested/overlapping patterns
+  let sanitized = content;
+  let previousContent;
+
+  // Iterate until no more changes (handles nested patterns like <scrscriptipt>)
+  do {
+    previousContent = sanitized;
+    sanitized = sanitized
+      // Remove script tags (iterative to catch nested)
+      .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+      // Remove event handlers
+      .replace(/\bon\w+\s*=/gi, '')
+      // Remove javascript: URLs (case-insensitive variants)
+      .replace(/j\s*a\s*v\s*a\s*s\s*c\s*r\s*i\s*p\s*t\s*:/gi, '')
+      // Remove data: URLs (except images)
+      .replace(/data:(?!image\/)/gi, '')
+      // Remove SVG with event handlers
+      .replace(/<svg\b[^>]*\bon\w+\s*=[^>]*>/gi, '');
+  } while (sanitized !== previousContent);
+
+  // Allow only safe tags (final pass)
+  sanitized = sanitized.replace(/<[^>]+>/g, (tag) => {
+    const safeTags = ['b', 'i', 'strong', 'em', 'u', 's', 'br', 'p', 'span'];
+    const match = tag.match(/<\/?(\w+)/);
+    const tagName = match ? match[1].toLowerCase() : '';
+    return safeTags.includes(tagName) ? tag : '';
+  });
 
   return sanitized;
 }
@@ -43,11 +53,27 @@ function isSafeThumbnailUrl(url) {
     return false;
   }
 
-  // Enhanced URL validation with security checks
-  return url.startsWith('data:image/') ||
-         (url.startsWith('https://') &&
-          !url.includes('javascript:') &&
-          !url.match(/\.(js|php|asp|aspx|jsp|cfm|pl|py|rb|sh|exe|dll|bat|cmd|vbs|ps1|msi)(\?|#|$)/i));
+  // Enhanced URL validation with explicit scheme allowlist
+  // Only allow data:image/ URLs or https:// URLs
+  if (url.startsWith('data:image/')) {
+    return true;
+  }
+
+  try {
+    const parsed = new URL(url);
+    // Only allow https scheme
+    if (parsed.protocol !== 'https:') {
+      return false;
+    }
+    // Block dangerous file extensions
+    if (/\.(js|php|asp|aspx|jsp|cfm|pl|py|rb|sh|exe|dll|bat|cmd|vbs|ps1|msi)(\?|#|$)/i.test(parsed.pathname)) {
+      return false;
+    }
+    return true;
+  } catch {
+    // Invalid URL
+    return false;
+  }
 }
 
 function sanitizeFileName(fileName) {
@@ -57,9 +83,10 @@ function sanitizeFileName(fileName) {
 
   // Enhanced file name sanitization with path traversal prevention
   return fileName
-    .replace(/[\\/:*?"<>|]/g, '_')
-    .replace(/^\.+/, '')
-    .replace(/\.+$/, '')
+    .replace(/[\\/:*?"<>|]/g, '_')  // Replace dangerous chars with underscore
+    .replace(/\.{2,}/g, '.')        // Collapse consecutive dots (path traversal prevention)
+    .replace(/^\.+/, '')            // Remove leading dots
+    .replace(/\.+$/, '')            // Remove trailing dots
     .trim();
 }
 
@@ -69,10 +96,13 @@ function sanitizeUserContent(content) {
   }
 
   // Strict sanitization for user-generated content
+  // Remove all dangerous URL schemes and event handlers
   return content
     .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
     .replace(/\bon\w+\s*=/gi, '')
-    .replace(/javascript:/gi, '');
+    .replace(/javascript:/gi, '')
+    .replace(/vbscript:/gi, '')
+    .replace(/data:(?!image\/)/gi, '');  // Only allow data:image/ URLs
 }
 
 // Comprehensive Security Tests
@@ -195,7 +225,7 @@ try {
   `;
   const result = sanitizeMessageContent(complexPayload);
   if (!result.includes('<script>') && !result.includes('onerror') &&
-      !result.includes('onload') && !result.includes('javascript:')) {
+    !result.includes('onload') && !result.includes('javascript:')) {
     console.log('✅ Test 8 PASSED: Complex XSS payload handling');
     passedTests++;
   } else {

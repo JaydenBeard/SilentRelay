@@ -340,7 +340,9 @@ func (a *AuthService) ValidateToken(tokenString string) (*Claims, error) {
 
 	// If current secret fails and we have a previous secret, try with previous secret
 	if a.hasPreviousSecret() {
-		a.rotationLogger.Printf("Attempting validation with previous JWT secret for token: %s...", tokenString[:8])
+		// Log with hash fingerprint instead of actual token content for security
+		tokenFingerprint := hashTokenForBlacklist(tokenString)[:8]
+		a.rotationLogger.Printf("Attempting validation with previous JWT secret for token fingerprint: %s...", tokenFingerprint)
 		token, err = a.validateTokenWithSecret(tokenString, a.GetPreviousJWTSecret())
 		if err == nil {
 			a.rotationLogger.Printf("Token validated successfully with previous secret - transition period active")

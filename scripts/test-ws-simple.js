@@ -7,7 +7,7 @@ const https = require('https');
 const WebSocket = require('ws');
 const crypto = require('crypto');
 
-process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+// Note: For local testing with self-signed certs, set NODE_TLS_REJECT_UNAUTHORIZED=0 in your environment
 
 const BASE_URL = 'https://localhost';
 const WS_URL = 'wss://localhost/ws';
@@ -16,7 +16,7 @@ const WS_URL = 'wss://localhost/ws';
 function generateHmacSignature(token, type, timestamp, messageId, payload) {
     // Create message string: type + timestamp + messageId + payload (as JSON)
     const messageStr = `${type}:${timestamp}:${messageId}:${JSON.stringify(payload)}`;
-    
+
     // Use token as key (first 32 bytes, padded if shorter)
     let keyBuffer = Buffer.from(token, 'utf8');
     if (keyBuffer.length < 32) {
@@ -25,7 +25,7 @@ function generateHmacSignature(token, type, timestamp, messageId, payload) {
     } else if (keyBuffer.length > 32) {
         keyBuffer = keyBuffer.slice(0, 32);
     }
-    
+
     const hmac = crypto.createHmac('sha256', keyBuffer);
     hmac.update(messageStr);
     return hmac.digest('hex');
@@ -39,7 +39,6 @@ async function makeRequest(endpoint, method = 'GET', body = null, token = null) 
             port: url.port || 443,
             path: url.pathname + url.search,
             method,
-            agent: new https.Agent({ rejectUnauthorized: false }),
             headers: { 'Content-Type': 'application/json' },
         };
         if (token) options.headers['Authorization'] = `Bearer ${token}`;
@@ -107,7 +106,7 @@ async function main() {
 
     // Connect WebSockets
     console.log('Connecting WebSocket for user 1...');
-    const ws1 = new WebSocket(`${WS_URL}?token=${user1.token}`, { rejectUnauthorized: false });
+    const ws1 = new WebSocket(`${WS_URL}?token=${user1.token}`);
 
     const connected1 = await new Promise((resolve) => {
         ws1.on('open', () => { console.log('User 1 WS connected'); resolve(true); });
@@ -116,7 +115,7 @@ async function main() {
     });
 
     console.log('Connecting WebSocket for user 2...');
-    const ws2 = new WebSocket(`${WS_URL}?token=${user2.token}`, { rejectUnauthorized: false });
+    const ws2 = new WebSocket(`${WS_URL}?token=${user2.token}`);
 
     let receivedMessage = null;
     ws2.on('message', (data) => {
@@ -140,7 +139,7 @@ async function main() {
 
     // Send message from user 1 to user 2
     console.log('Sending message from user 1 to user 2...');
-    
+
     const type = 'send';
     const payload = {
         receiver_id: user2.userId,  // snake_case to match Go backend
@@ -149,10 +148,10 @@ async function main() {
     };
     const timestamp = new Date().toISOString();  // ISO 8601 format for Go
     const messageId = crypto.randomUUID();
-    
+
     // Generate proper HMAC signature using user1's token
     const signature = generateHmacSignature(user1.token, type, timestamp, messageId, payload);
-    
+
     const message = {
         type,
         payload,

@@ -9,9 +9,7 @@ const https = require('https');
 const WebSocket = require('ws');
 const crypto = require('crypto');
 
-// Ignore self-signed certificates
-const agent = new https.Agent({ rejectUnauthorized: false });
-process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+// Note: For local testing with self-signed certs, set NODE_TLS_REJECT_UNAUTHORIZED=0 in your environment
 
 const BASE_URL = 'https://localhost';
 const WS_URL = 'wss://localhost/ws';
@@ -129,9 +127,7 @@ function connectWebSocket(token, username) {
     return new Promise((resolve, reject) => {
         console.log(`\n🔌 Connecting WebSocket for ${username}...`);
 
-        const ws = new WebSocket(`${WS_URL}?token=${token}`, {
-            rejectUnauthorized: false,
-        });
+        const ws = new WebSocket(`${WS_URL}?token=${token}`);
 
         const timeout = setTimeout(() => {
             ws.close();

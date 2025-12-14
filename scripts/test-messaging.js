@@ -6,8 +6,10 @@
 const https = require('https');
 const crypto = require('crypto');
 
-// Ignore self-signed certificate
-const agent = new https.Agent({ rejectUnauthorized: false });
+
+// Note: For local testing with self-signed certs, set NODE_TLS_REJECT_UNAUTHORIZED=0 in your environment
+
+const agent = new https.Agent({});
 
 const BASE_URL = 'https://localhost';
 

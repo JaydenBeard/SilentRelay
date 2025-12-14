@@ -11,17 +11,25 @@ function sanitizeMessageContent(content) {
     return '';
   }
 
-  // Basic XSS pattern removal
-  let sanitized = content
-    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
-    .replace(/\bon\w+\s*=/gi, '')
-    .replace(/javascript:/gi, '')
-    .replace(/<[^>]+>/g, (tag) => {
-      // Allow only safe tags
-      const safeTags = ['b', 'i', 'strong', 'em', 'u', 's', 'br', 'p', 'span'];
-      const tagName = tag.match(/<(\w+)/)?.[1]?.toLowerCase() || '';
-      return safeTags.includes(tagName) ? tag : '';
-    });
+  // Iterative XSS pattern removal (handles nested patterns)
+  let sanitized = content;
+  let previousContent;
+
+  do {
+    previousContent = sanitized;
+    sanitized = sanitized
+      .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+      .replace(/\bon\w+\s*=/gi, '')
+      .replace(/j\s*a\s*v\s*a\s*s\s*c\s*r\s*i\s*p\s*t\s*:/gi, '');
+  } while (sanitized !== previousContent);
+
+  // Allow only safe tags (final pass)
+  sanitized = sanitized.replace(/<[^>]+>/g, (tag) => {
+    const safeTags = ['b', 'i', 'strong', 'em', 'u', 's', 'br', 'p', 'span'];
+    const match = tag.match(/<\/?(\w+)/);
+    const tagName = match ? match[1].toLowerCase() : '';
+    return safeTags.includes(tagName) ? tag : '';
+  });
 
   return sanitized;
 }
@@ -31,10 +39,27 @@ function isSafeThumbnailUrl(url) {
     return false;
   }
 
-  return url.startsWith('data:image/') ||
-         (url.startsWith('https://') &&
-          !url.includes('javascript:') &&
-          !url.match(/\.(js|php|asp|aspx|jsp|cfm|pl|py|rb|sh|exe|dll|bat|cmd|vbs|ps1|msi)(\?|#|$)/i));
+  // Enhanced URL validation with explicit scheme allowlist
+  // Only allow data:image/ URLs or https:// URLs
+  if (url.startsWith('data:image/')) {
+    return true;
+  }
+
+  try {
+    const parsed = new URL(url);
+    // Only allow https scheme
+    if (parsed.protocol !== 'https:') {
+      return false;
+    }
+    // Block dangerous file extensions
+    if (/\.(js|php|asp|aspx|jsp|cfm|pl|py|rb|sh|exe|dll|bat|cmd|vbs|ps1|msi)(\?|#|$)/i.test(parsed.pathname)) {
+      return false;
+    }
+    return true;
+  } catch {
+    // Invalid URL
+    return false;
+  }
 }
 
 function sanitizeFileName(fileName) {
@@ -43,9 +68,10 @@ function sanitizeFileName(fileName) {
   }
 
   return fileName
-    .replace(/[\\/:*?"<>|]/g, '_')
-    .replace(/^\.+/, '')
-    .replace(/\.+$/, '')
+    .replace(/[\\/:*?"<>|]/g, '_')  // Replace dangerous chars with underscore
+    .replace(/\.{2,}/g, '.')        // Collapse consecutive dots (path traversal prevention)
+    .replace(/^\.+/, '')            // Remove leading dots
+    .replace(/\.+$/, '')            // Remove trailing dots
     .trim();
 }
 
@@ -54,10 +80,14 @@ function sanitizeUserContent(content) {
     return '';
   }
 
+  // Strict sanitization for user-generated content
+  // Remove all dangerous URL schemes and event handlers
   return content
     .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
     .replace(/\bon\w+\s*=/gi, '')
-    .replace(/javascript:/gi, '');
+    .replace(/javascript:/gi, '')
+    .replace(/vbscript:/gi, '')
+    .replace(/data:(?!image\/)/gi, '');  // Only allow data:image/ URLs
 }
 
 // Run tests
@@ -152,7 +182,7 @@ const complexPayload = `
 `;
 const result8 = sanitizeMessageContent(complexPayload);
 if (!result8.includes('<script>') && !result8.includes('onerror') &&
-    !result8.includes('onload') && !result8.includes('javascript:')) {
+  !result8.includes('onload') && !result8.includes('javascript:')) {
   console.log('✅ Test 8 PASSED: Complex XSS payload handling works');
   passedTests++;
 } else {

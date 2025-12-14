@@ -6,6 +6,10 @@ on:
   pull_request:
     branches: [ main ]
 
+# Restrict default permissions for security (least privilege)
+permissions:
+  contents: read
+
 jobs:
   audit:
     runs-on: ubuntu-latest

@@ -271,7 +271,7 @@ export class WebSocketService {
           try {
             handler(message.payload, message);
           } catch (e) {
-            console.error(`Error in handler for ${message.type}:`, e);
+            console.error('Error in handler for', message.type, ':', e);
             // Add recovery mechanism
             this.recoverFromHandlerError(message.type, e);
           }
@@ -418,7 +418,7 @@ export class WebSocketService {
 
   // recoverFromHandlerError handles errors from message handlers
   private recoverFromHandlerError(messageType: WSMessageType, error: any): void {
-    console.error(`Recovering from handler error for ${messageType}:`, error);
+    console.error('Recovering from handler error for', messageType, ':', error);
 
     // Implement recovery strategies based on message type
     switch (messageType) {

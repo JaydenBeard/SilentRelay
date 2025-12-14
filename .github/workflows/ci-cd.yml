@@ -23,6 +23,10 @@ env:
   GO_VERSION: '1.24.11'
   NODE_VERSION: '24'
 
+# Restrict default permissions for security (least privilege)
+permissions:
+  contents: read
+
 jobs:
   # ========================================
   # BACKEND TESTS
