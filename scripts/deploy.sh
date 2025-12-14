@@ -145,7 +145,7 @@ fi
 if [ "$SKIP_SUPPORTING" = false ]; then
     echo ""
     echo -e "${BLUE}🔄 Step 5: Deploying supporting services...${NC}"
-    docker compose up -d group-service presence-service notification-service scheduler queue-worker
+    docker compose up -d group-service presence-service notification-service scheduler queue-worker turn
     echo -e "${GREEN}✅ Supporting services deployed${NC}"
 else
     echo ""
