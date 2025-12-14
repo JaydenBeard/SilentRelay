@@ -11,7 +11,7 @@ export interface User {
 
 // Message types
 export type MessageStatus = 'sending' | 'sent' | 'delivered' | 'read' | 'failed';
-export type MessageType = 'text' | 'file' | 'voice' | 'image' | 'video';
+export type MessageType = 'text' | 'file' | 'voice' | 'image' | 'video' | 'call';
 
 export interface Message {
   id: string;
@@ -23,6 +23,7 @@ export interface Message {
   type: MessageType;
   replyTo?: string;
   metadata?: FileMetadata;
+  callMetadata?: CallMetadata;
 }
 
 export interface FileMetadata {
@@ -33,6 +34,13 @@ export interface FileMetadata {
   thumbnail?: string;
   encryptionKey: number[];
   iv: number[];
+}
+
+export interface CallMetadata {
+  callType: 'audio' | 'video';
+  duration?: number; // in seconds
+  endReason: 'completed' | 'declined' | 'missed' | 'failed' | 'busy' | 'cancelled';
+  direction: 'incoming' | 'outgoing';
 }
 
 // Conversation types

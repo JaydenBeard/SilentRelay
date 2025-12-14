@@ -11,10 +11,10 @@
  */
 
 import { memo, useMemo, useState, useRef, useCallback } from 'react';
-import { Check, Reply, Trash2, Download, Loader2 } from 'lucide-react';
+import { Check, Reply, Trash2, Download, Loader2, Phone, Video } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useSwipeGesture } from '@/hooks/useSwipeGesture';
-import type { Message } from '@/core/types';
+import type { Message, CallMetadata } from '@/core/types';
 import { sanitizeMessageContent, isSafeThumbnailUrl } from '@/core/utils/sanitization';
 
 interface MessageBubbleProps {
@@ -229,7 +229,13 @@ export const MessageBubble = memo(function MessageBubble({
         className="transition-transform duration-150 ease-out"
         style={{ transform: swipeTransform }}
       >
-        {fileMetadata ? (
+        {message.type === 'call' && message.callMetadata ? (
+          // Call message - centered system-style message
+          <CallMessageContent
+            callMetadata={message.callMetadata}
+            timestamp={message.timestamp}
+          />
+        ) : fileMetadata ? (
           // File message
           <FileMessageContent
             metadata={fileMetadata}
@@ -379,6 +385,73 @@ function FileMessageContent({
         {isOwn && (
           <span className="text-foreground-muted">{statusIndicator}</span>
         )}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Call Message Content - System-style centered message
+ */
+function CallMessageContent({
+  callMetadata,
+  timestamp,
+}: {
+  callMetadata: CallMetadata;
+  timestamp: number;
+}) {
+  // Format duration as "X min Y sec"
+  const formatCallDuration = (seconds?: number): string => {
+    if (!seconds) return '';
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    if (mins > 0) {
+      return ` • ${mins} min ${secs} sec`;
+    }
+    return ` • ${secs} sec`;
+  };
+
+  // Get call description
+  const getCallDescription = (): string => {
+    const isVideo = callMetadata.callType === 'video';
+    const type = isVideo ? 'Video call' : 'Voice call';
+
+    switch (callMetadata.endReason) {
+      case 'missed':
+        return `Missed ${type.toLowerCase()}`;
+      case 'declined':
+        return callMetadata.direction === 'outgoing'
+          ? `${type} declined`
+          : `You declined ${type.toLowerCase()}`;
+      case 'failed':
+        return `${type} failed`;
+      case 'busy':
+        return 'Line was busy';
+      case 'cancelled':
+        return `${type} cancelled`;
+      default:
+        return type;
+    }
+  };
+
+  const isVideo = callMetadata.callType === 'video';
+  const showDuration = callMetadata.endReason === 'completed' && callMetadata.duration;
+
+  return (
+    <div className="flex justify-center w-full">
+      <div className="flex items-center gap-2 px-4 py-2 bg-background-secondary/50 rounded-full text-foreground-muted text-sm">
+        {isVideo ? (
+          <Video className="h-4 w-4" />
+        ) : (
+          <Phone className="h-4 w-4" />
+        )}
+        <span>
+          {getCallDescription()}
+          {showDuration && formatCallDuration(callMetadata.duration)}
+        </span>
+        <span className="text-[10px] tabular-nums">
+          {formatMessageTime(timestamp)}
+        </span>
       </div>
     </div>
   );

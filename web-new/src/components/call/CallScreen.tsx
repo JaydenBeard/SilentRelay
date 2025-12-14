@@ -6,9 +6,11 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useCallStore } from '@/core/store/callStore';
+import { useChatStore } from '@/core/store/chatStore';
 import { webrtcService } from '@/core/services/webrtc';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
+import type { Message, CallMetadata } from '@/core/types';
 import {
   Phone,
   PhoneOff,
@@ -319,6 +321,38 @@ function CallButton({
 export function CallEnded() {
   const { currentCall } = useCallStore();
   const [visible, setVisible] = useState(false);
+  const [messageSaved, setMessageSaved] = useState(false);
+
+  // Save call history to chat when call ends
+  useEffect(() => {
+    if (currentCall?.status === 'ended' && !messageSaved) {
+      // Calculate duration in seconds
+      const durationSeconds = currentCall.startTime && currentCall.endTime
+        ? Math.floor((currentCall.endTime - currentCall.startTime) / 1000)
+        : undefined;
+
+      // Create call message
+      const callMessage: Message = {
+        id: `call-${currentCall.callId}`,
+        conversationId: currentCall.peerId,
+        senderId: currentCall.direction === 'outgoing' ? 'self' : currentCall.peerId,
+        content: '', // Content handled by callMetadata
+        timestamp: currentCall.endTime || Date.now(),
+        status: 'sent',
+        type: 'call',
+        callMetadata: {
+          callType: currentCall.type,
+          duration: durationSeconds,
+          endReason: currentCall.endReason || 'completed',
+          direction: currentCall.direction,
+        } as CallMetadata,
+      };
+
+      // Add message to chat
+      useChatStore.getState().addMessage(callMessage);
+      setMessageSaved(true);
+    }
+  }, [currentCall, messageSaved]);
 
   useEffect(() => {
     if (currentCall?.status === 'ended') {
@@ -326,6 +360,7 @@ export function CallEnded() {
       const timeout = setTimeout(() => {
         setVisible(false);
         useCallStore.getState().reset();
+        setMessageSaved(false);
       }, 3000);
       return () => clearTimeout(timeout);
     }
