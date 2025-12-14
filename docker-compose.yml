@@ -171,7 +171,7 @@ services:
   group-service:
     build:
       context: .
-      dockerfile: Dockerfile.group
+      dockerfile: infrastructure/docker/Dockerfile.group
     environment:
       - SERVER_PORT=8083
       - "REDIS_URL=redis:6379"
@@ -193,7 +193,7 @@ services:
   presence-service:
     build:
       context: .
-      dockerfile: Dockerfile.presence
+      dockerfile: infrastructure/docker/Dockerfile.presence
     environment:
       - "REDIS_URL=redis:6379"
       # SECURITY: Require POSTGRES_PASSWORD to be set - no defaults allowed
@@ -215,7 +215,7 @@ services:
   notification-service:
     build:
       context: .
-      dockerfile: Dockerfile.notification
+      dockerfile: infrastructure/docker/Dockerfile.notification
     environment:
       - "REDIS_URL=redis:6379"
       - SERVER_PORT=8082
@@ -230,7 +230,7 @@ services:
   scheduler:
     build:
       context: .
-      dockerfile: Dockerfile.scheduler
+      dockerfile: infrastructure/docker/Dockerfile.scheduler
     environment:
       - "REDIS_URL=redis:6379"
       # SECURITY: Require POSTGRES_PASSWORD to be set
@@ -249,7 +249,7 @@ services:
   queue-worker:
     build:
       context: .
-      dockerfile: Dockerfile.worker
+      dockerfile: infrastructure/docker/Dockerfile.worker
     environment:
       - "REDIS_URL=redis:6379"
       # SECURITY: Require POSTGRES_PASSWORD to be set
