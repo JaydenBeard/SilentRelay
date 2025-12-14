@@ -93,6 +93,10 @@ export function ActiveCall() {
   useEffect(() => {
     if (localVideoRef.current && localStream) {
       localVideoRef.current.srcObject = localStream;
+      // iOS Safari requires explicit play
+      localVideoRef.current.play().catch(() => {
+        // Autoplay may be blocked, user will see video when they interact
+      });
     }
   }, [localStream]);
 
@@ -101,9 +105,17 @@ export function ActiveCall() {
     if (remoteStream) {
       if (remoteVideoRef.current) {
         remoteVideoRef.current.srcObject = remoteStream;
+        // iOS Safari requires explicit play
+        remoteVideoRef.current.play().catch(() => {
+          console.log('[CallScreen] Remote video autoplay blocked');
+        });
       }
       if (remoteAudioRef.current) {
         remoteAudioRef.current.srcObject = remoteStream;
+        // iOS Safari requires explicit play for audio
+        remoteAudioRef.current.play().catch(() => {
+          console.log('[CallScreen] Remote audio autoplay blocked');
+        });
       }
     }
   }, [remoteStream]);
