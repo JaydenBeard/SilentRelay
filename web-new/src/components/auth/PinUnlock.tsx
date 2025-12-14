@@ -2,15 +2,21 @@
  * PIN Unlock Component
  * 
  * Shown when an existing user logs in and needs to unlock their encrypted data.
- * If this is a new device (no encryption set up), redirects to onboarding.
+ * If this is a new device (no encryption set up), offers to sync from primary device
+ * or set up fresh encryption.
  */
 
 import { useState, useCallback, useEffect } from 'react';
-import { Shield, Lock, Eye, EyeOff, AlertCircle, Smartphone } from 'lucide-react';
+import { Shield, Lock, Eye, EyeOff, AlertCircle, Smartphone, RefreshCw, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useAuthStore } from '@/core/store/authStore';
 import { signalProtocol } from '@/core/crypto/signal';
+import {
+  getSyncState,
+  onSyncStateChange,
+  type SyncState,
+} from '@/core/services/deviceSync';
 
 export function PinUnlock() {
   const [pin, setPin] = useState('');
@@ -19,7 +25,8 @@ export function PinUnlock() {
   const [isLoading, setIsLoading] = useState(false);
   const [isNewDevice, setIsNewDevice] = useState(false);
   const [isChecking, setIsChecking] = useState(true);
-  
+  const [syncState, setSyncState] = useState<SyncState>(getSyncState());
+
   const { user, logout } = useAuthStore();
 
   // Check if encryption is set up on this device
@@ -28,7 +35,7 @@ export function PinUnlock() {
       try {
         await signalProtocol.initialize();
         const isEnabled = signalProtocol.isEncryptionEnabled();
-        
+
         if (!isEnabled) {
           // New device - no encryption set up
           setIsNewDevice(true);
@@ -43,13 +50,27 @@ export function PinUnlock() {
     checkEncryption();
   }, []);
 
+  // Listen for sync state changes
+  useEffect(() => {
+    const unsubscribe = onSyncStateChange((state) => {
+      setSyncState(state);
+
+      // If sync succeeded, complete setup
+      if (state.status === 'success') {
+        // Reload page to reinitialize with synced data
+        window.location.reload();
+      }
+    });
+    return unsubscribe;
+  }, []);
+
   // Handle new device setup - go to PIN setup in onboarding
   const handleNewDeviceSetup = useCallback(() => {
     // Set onboarding to PIN step and skip PIN unlock
-    useAuthStore.setState({ 
-      needsOnboarding: true, 
+    useAuthStore.setState({
+      needsOnboarding: true,
       onboardingStep: 'pin',
-      needsPinUnlock: false 
+      needsPinUnlock: false
     });
   }, []);
 
@@ -65,10 +86,10 @@ export function PinUnlock() {
     try {
       // Initialize signal protocol if not already
       await signalProtocol.initialize();
-      
+
       // Try to unlock with the PIN
       await signalProtocol.unlockWithPin(pin);
-      
+
       // Success! Mark PIN unlock as complete (use getState to avoid dependency issues)
       useAuthStore.getState().completePinUnlock();
     } catch (err) {
@@ -97,8 +118,11 @@ export function PinUnlock() {
     );
   }
 
-  // New device - show setup prompt
+  // New device - show sync/setup options
   if (isNewDevice) {
+    const isSyncing = ['requesting', 'waiting', 'receiving'].includes(syncState.status);
+    const syncFailed = ['timeout', 'failed', 'no_primary'].includes(syncState.status);
+
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-4">
         <div className="w-full max-w-md">
@@ -113,24 +137,73 @@ export function PinUnlock() {
             </p>
           </div>
 
-          {/* New Device Card */}
-          <div className="bg-background-secondary rounded-2xl p-6 shadow-lg border border-border">
-            <p className="text-foreground-secondary text-center mb-6">
-              This device doesn't have your encryption keys. Set up a new PIN to secure your messages on this device.
-            </p>
-            
-            <Button
-              onClick={handleNewDeviceSetup}
-              className="w-full"
-              size="lg"
-            >
-              Set Up Encryption
-            </Button>
+          {/* Sync Status Card */}
+          {isSyncing && (
+            <div className="bg-background-secondary rounded-2xl p-6 shadow-lg border border-border mb-4">
+              <div className="flex items-center gap-3 mb-4">
+                <Loader2 className="w-5 h-5 text-primary animate-spin" />
+                <div>
+                  <h2 className="font-semibold">Syncing Sessions</h2>
+                  <p className="text-sm text-foreground-secondary">
+                    {syncState.message || 'Please wait...'}
+                  </p>
+                </div>
+              </div>
+              <p className="text-xs text-foreground-muted text-center">
+                Keep your other device open until sync completes.
+              </p>
+            </div>
+          )}
 
-            <p className="text-xs text-foreground-muted text-center mt-4">
-              Previous messages from other devices won't be available here.
-            </p>
-          </div>
+          {/* Sync Failed / New Device Options */}
+          {(!isSyncing || syncFailed) && (
+            <div className="bg-background-secondary rounded-2xl p-6 shadow-lg border border-border">
+              {syncFailed && (
+                <div className="mb-4 p-3 bg-warning/10 border border-warning/20 rounded-lg flex items-center gap-2 text-warning">
+                  <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                  <span className="text-sm">{syncState.message || 'Sync failed'}</span>
+                </div>
+              )}
+
+              <p className="text-foreground-secondary text-center mb-6">
+                {syncFailed
+                  ? "Couldn't sync from your other device. You can try again or start fresh."
+                  : "Set up encryption on this device to secure your messages."
+                }
+              </p>
+
+              <div className="space-y-3">
+                {/* Retry sync button - only show if we have WebSocket */}
+                {syncFailed && (
+                  <Button
+                    onClick={() => {
+                      // Would trigger sync request again
+                      // For now, just refresh to retry
+                      window.location.reload();
+                    }}
+                    variant="outline"
+                    className="w-full"
+                    size="lg"
+                  >
+                    <RefreshCw className="w-4 h-4 mr-2" />
+                    Try Sync Again
+                  </Button>
+                )}
+
+                <Button
+                  onClick={handleNewDeviceSetup}
+                  className="w-full"
+                  size="lg"
+                >
+                  Start Fresh
+                </Button>
+              </div>
+
+              <p className="text-xs text-foreground-muted text-center mt-4">
+                Starting fresh creates new encryption keys. Previous messages won't sync.
+              </p>
+            </div>
+          )}
 
           {/* Logout Option */}
           <div className="text-center mt-6">
