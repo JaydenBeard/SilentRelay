@@ -1,4 +1,4 @@
-# Build stage
+# Build stage with cache mounts for faster builds
 FROM golang:1.24-alpine AS builder
 
 WORKDIR /app
@@ -6,17 +6,20 @@ WORKDIR /app
 # Install dependencies
 RUN apk add --no-cache git ca-certificates
 
-# Copy go mod files and download dependencies (cached layer)
+# Copy go mod files first (cached layer)
 COPY go.mod go.sum* ./
-RUN go mod download
 
-# Force cache invalidation for source code
-ARG BUILD_TIME
+# Download dependencies with cache mount
+RUN --mount=type=cache,target=/go/pkg/mod \
+    go mod download
+
 # Copy source code
 COPY . .
 
-# Build (removed -a flag to enable build cache)
-RUN CGO_ENABLED=0 GOOS=linux go build -installsuffix cgo -o chatserver ./cmd/chatserver
+# Build with cache mount for faster incremental builds
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    CGO_ENABLED=0 GOOS=linux go build -installsuffix cgo -o chatserver ./cmd/chatserver
 
 # Runtime stage
 FROM alpine:3.19
@@ -41,4 +44,3 @@ EXPOSE 8080
 
 ENTRYPOINT ["/docker-entrypoint.sh"]
 CMD ["./chatserver"]
-
