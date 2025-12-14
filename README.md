@@ -1,6 +1,6 @@
 # SilentRelay
 
-[![CI/CD Pipeline](https://github.com/JaydenBeard/silentrelay.com.au/actions/workflows/ci-cd.yml/badge.svg)](https://github.com/JaydenBeard/silentrelay.com.au/actions/workflows/ci-cd.yml)
+[![CI/CD Pipeline](https://github.com/JaydenBeard/SilentRelay/actions/workflows/ci-cd.yml/badge.svg)](https://github.com/JaydenBeard/SilentRelay/actions/workflows/ci-cd.yml)
 
 A private, end-to-end encrypted messaging service for family and friends. **No one can read your messages - not even the server operators.**
 
@@ -45,28 +45,42 @@ A private, end-to-end encrypted messaging service for family and friends. **No o
 
 ## Architecture
 
-```
-           
-   Client        Load        Chat Servers  
-  (React)     WS      Balancer            (Go x 2)     
-  E2EE Keys           (HAProxy)        
-                     
-                                                    
-         
-                                                                   
-                                                                   
-                  
-     Redis                        PostgreSQL             MinIO      
-  - Presence                     - Users              - Encrypted   
-  - Pub/Sub                      - Messages             Media       
-  - Connections                  - Groups           
-              
+```mermaid
+graph TB
+    subgraph Clients
+        C1[React Client<br/>E2EE Keys]
+    end
 
-         
-              Consul     
-           - Discovery   
-           - Health      
-         
+    subgraph LoadBalancing
+        LB[HAProxy<br/>Load Balancer]
+    end
+
+    subgraph ChatServers
+        CS1[Chat Server 1<br/>Go]
+        CS2[Chat Server 2<br/>Go]
+    end
+
+    subgraph DataStores
+        Redis[(Redis<br/>Presence, Pub/Sub)]
+        Postgres[(PostgreSQL<br/>Users, Messages)]
+        MinIO[(MinIO<br/>Encrypted Media)]
+    end
+
+    subgraph ServiceDiscovery
+        Consul[Consul<br/>Discovery & Health]
+    end
+
+    C1 -->|WebSocket| LB
+    LB --> CS1
+    LB --> CS2
+    CS1 --> Redis
+    CS2 --> Redis
+    CS1 --> Postgres
+    CS2 --> Postgres
+    CS1 --> MinIO
+    CS2 --> MinIO
+    CS1 -.-> Consul
+    CS2 -.-> Consul
 ```
 
 ## Quick Start
