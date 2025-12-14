@@ -244,7 +244,7 @@ export const MessageBubble = memo(function MessageBubble({
           <div className="space-y-1">
             <div
               className={cn(
-                'max-w-[280px] sm:max-w-[320px] md:max-w-[400px]',
+                'w-fit max-w-[280px] sm:max-w-[320px] md:max-w-[400px]',
                 'rounded-2xl px-4 py-2.5',
                 'shadow-sm',
                 isOwn

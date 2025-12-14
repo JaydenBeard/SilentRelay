@@ -351,8 +351,8 @@ export default function LandingPage() {
             </p>
           </div>
 
-          <div className="overflow-x-auto animate-on-scroll fade-up delay-200">
-            <table className="w-full min-w-[640px]">
+          <div className="overflow-x-auto overflow-y-hidden -mx-6 px-6 animate-on-scroll fade-up delay-200">
+            <table className="w-full min-w-[540px]">
               <thead>
                 <tr className="border-b border-border">
                   <th className="text-left py-4 px-4 font-medium">Feature</th>
