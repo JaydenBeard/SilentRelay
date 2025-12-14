@@ -916,11 +916,11 @@ func (h *Hub) handleCallSignaling(msg *models.WebSocketMessage) {
 	// Parse the payload to get the recipient
 	// Accept both target_id (frontend) and recipient_id (legacy) for compatibility
 	var payload struct {
-		TargetID    uuid.UUID `json:"target_id"`
-		RecipientID uuid.UUID `json:"recipient_id"`
-		CallType    string    `json:"call_type,omitempty"` // "audio" or "video"
-		SDP         string    `json:"sdp,omitempty"`
-		Candidate   string    `json:"candidate,omitempty"`
+		TargetID    uuid.UUID       `json:"target_id"`
+		RecipientID uuid.UUID       `json:"recipient_id"`
+		CallType    string          `json:"call_type,omitempty"` // "audio" or "video"
+		SDP         string          `json:"sdp,omitempty"`
+		Candidate   json.RawMessage `json:"candidate,omitempty"`
 	}
 
 	if err := json.Unmarshal(msg.Payload, &payload); err != nil {
