@@ -34,7 +34,7 @@ echo "🗑️  Resetting database..."
 
 # Connect to the database and truncate all tables
 # Uses CASCADE to handle foreign key dependencies
-docker compose exec -T postgres psql -U messaging messagingdb << 'EOF'
+docker compose exec -T postgres psql -U messaging messaging << 'EOF'
 -- Disable triggers temporarily for faster truncation
 SET session_replication_role = replica;
 
