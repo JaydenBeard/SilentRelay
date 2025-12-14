@@ -297,7 +297,7 @@ jobs:
           command_timeout: 20m
           timeout: 25m
           script: |
-            cd /opt/end2endsecure.com
+            cd /opt/silentrelay
             git pull origin main
             
             # Smart deploy based on what changed
