@@ -253,17 +253,32 @@ export function useWebSocket() {
   }, []);
 
   // Handle call answer
-  const handleCallAnswer = useCallback((payload: CallAnswerPayload) => {
+  const handleCallAnswer = useCallback((payload: CallAnswerPayload, message: WSMessage<CallAnswerPayload>) => {
+    console.log('[WS] Received call_answer:', {
+      answer: payload.answer ? 'present' : 'missing',
+      sender_id: message.sender_id,
+      type: message.type
+    });
     webrtcService.handleAnswer(payload.answer);
   }, []);
 
   // Handle ICE candidate
-  const handleCallCandidate = useCallback((payload: CallCandidatePayload) => {
+  const handleCallCandidate = useCallback((payload: CallCandidatePayload, message: WSMessage<CallCandidatePayload>) => {
+    console.log('[WS] Received ice_candidate:', {
+      candidate: payload.candidate ? 'present' : 'missing',
+      sender_id: message.sender_id,
+      type: message.type
+    });
     webrtcService.handleIceCandidate(payload.candidate);
   }, []);
 
   // Handle call hangup
-  const handleCallHangup = useCallback((payload: CallHangupPayload) => {
+  const handleCallHangup = useCallback((payload: CallHangupPayload, message: WSMessage<CallHangupPayload>) => {
+    console.log('[WS] Received call_end:', {
+      reason: payload.reason,
+      sender_id: message.sender_id,
+      type: message.type
+    });
     webrtcService.handleRemoteHangup(payload.reason);
   }, []);
 
@@ -358,13 +373,19 @@ export function useWebSocket() {
       },
       onSignal: (signal: CallSignal) => {
         // Send signal through WebSocket
-        if (!wsRef.current) return;
+        if (!wsRef.current) {
+          console.warn('[WS] Cannot send signal - WebSocket not connected');
+          return;
+        }
 
         // Get current user info for call offers
         const currentUser = useAuthStore.getState().user;
 
+        console.log('[WS] Sending signal:', signal.type, 'to peer:', signal.peerId);
+
         switch (signal.type) {
           case 'offer':
+            console.log('[WS] Sending call_offer with SDP');
             wsRef.current.send('call_offer', {
               call_id: signal.callId,
               recipient_id: signal.peerId,
@@ -375,6 +396,7 @@ export function useWebSocket() {
             });
             break;
           case 'answer':
+            console.log('[WS] Sending call_answer with SDP to:', signal.peerId);
             wsRef.current.send('call_answer', {
               call_id: signal.callId,
               recipient_id: signal.peerId,
@@ -382,6 +404,7 @@ export function useWebSocket() {
             });
             break;
           case 'candidate':
+            console.log('[WS] Sending ice_candidate to:', signal.peerId);
             wsRef.current.send('ice_candidate', {
               call_id: signal.callId,
               recipient_id: signal.peerId,
@@ -389,6 +412,7 @@ export function useWebSocket() {
             });
             break;
           case 'hangup':
+            console.log('[WS] Sending call_end to:', signal.peerId);
             wsRef.current.send('call_end', {
               call_id: signal.callId,
               recipient_id: signal.peerId,
