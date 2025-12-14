@@ -13,6 +13,12 @@ import { useSettingsStore } from '@/core/store/settingsStore';
 import { WebSocketService } from '@/core/services/websocket';
 import { signalProtocol } from '@/core/crypto/signal';
 import { webrtcService, type CallSignal } from '@/core/services/webrtc';
+import {
+  exportSessionBundle,
+  importSessionBundle,
+  setSyncState,
+  canActAsPrimary,
+} from '@/core/services/deviceSync';
 import type {
   EncryptedPayload,
   TypingPayload,
@@ -53,6 +59,24 @@ interface MediaKeyPayload {
   encrypted_key: string;
   algorithm: string;
   timestamp: string;
+}
+
+// Device sync payload types
+interface SyncRequestPayload {
+  requesting_device_id: string;
+  timestamp: number;
+}
+
+interface SyncDataPayload {
+  encrypted: string;
+  iv: string;
+  source_device_id: string;
+}
+
+interface IdentityKeyChangedPayload {
+  user_id: string;
+  new_fingerprint: string;
+  timestamp: number;
 }
 
 export function useWebSocket() {
@@ -249,6 +273,72 @@ export function useWebSocket() {
     // This would involve updating a media key store and triggering decryption
   }, []);
 
+  // Handle sync request from another device (this device is primary)
+  const handleSyncRequest = useCallback(async (payload: SyncRequestPayload, message: WSMessage<SyncRequestPayload>) => {
+    console.log('[Sync] Received sync request from device:', payload.requesting_device_id);
+
+    // Check if we can act as primary
+    const isPrimary = await canActAsPrimary();
+    if (!isPrimary) {
+      console.log('[Sync] Cannot act as primary - no account');
+      return;
+    }
+
+    try {
+      // Export our session bundle
+      const bundle = await exportSessionBundle();
+
+      // Get the master key from signalProtocol to encrypt the bundle
+      // Note: The recipient will need to use the same PIN to decrypt
+      // For now, we send the bundle as-is (already has encrypted account pickle)
+
+      // Send sync data back to the requesting device
+      wsRef.current?.send('sync_data', {
+        target_device_id: message.sender_id,
+        bundle: bundle,
+        source_device_id: useAuthStore.getState().user?.id,
+      });
+
+      console.log('[Sync] Sent session bundle to requesting device');
+    } catch (error) {
+      console.error('[Sync] Failed to export sessions:', error);
+    }
+  }, []);
+
+  // Handle sync data received from primary device (this device is new)
+  const handleSyncData = useCallback(async (payload: SyncDataPayload) => {
+    console.log('[Sync] Received sync data from device:', payload.source_device_id);
+
+    try {
+      // If encrypted, decrypt it first
+      if (payload.encrypted && payload.iv) {
+        // We need the master key - this should be available if user already entered PIN
+        // For now, handle the unencrypted bundle case
+        console.log('[Sync] Encrypted bundle received - decryption requires master key');
+        setSyncState({ status: 'failed', message: 'Encrypted sync not yet implemented' });
+        return;
+      }
+
+      // Import the session bundle
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const bundle = (payload as any).bundle;
+      if (bundle) {
+        await importSessionBundle(bundle);
+        setSyncState({ status: 'success', message: 'Sessions synced successfully!' });
+      }
+    } catch (error) {
+      console.error('[Sync] Failed to import sessions:', error);
+      setSyncState({ status: 'failed', message: 'Failed to import sessions' });
+    }
+  }, []);
+
+  // Handle identity key change notification
+  const handleIdentityKeyChanged = useCallback((payload: IdentityKeyChangedPayload) => {
+    console.log('[Security] Identity key changed for user:', payload.user_id);
+    // Store this in the chat store to show safety number banner
+    useChatStore.getState().setIdentityKeyChanged(payload.user_id, true);
+  }, []);
+
   // Set up WebRTC service handlers
   useEffect(() => {
     const { setCurrentCall, setLocalStream, setRemoteStream } = useCallStore.getState();
@@ -373,6 +463,11 @@ export function useWebSocket() {
     // Media key exchange handler
     ws.on('media_key', handleMediaKey);
 
+    // Device sync handlers
+    ws.on('sync_request', handleSyncRequest);
+    ws.on('sync_data', handleSyncData);
+    ws.on('identity_key_changed', handleIdentityKeyChanged);
+
     // Connect
     ws.connect().catch(console.error);
     wsRef.current = ws;
@@ -396,6 +491,9 @@ export function useWebSocket() {
     handleCallCandidate,
     handleCallHangup,
     handleMediaKey,
+    handleSyncRequest,
+    handleSyncData,
+    handleIdentityKeyChanged,
   ]);
 
   // Helper function to decode base64 to Uint8Array

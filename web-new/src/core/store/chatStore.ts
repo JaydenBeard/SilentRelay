@@ -10,6 +10,7 @@ interface ChatState {
   activeConversationId: string | null;
   presenceCache: Record<string, { isOnline: boolean; lastSeen?: number }>;
   typingUsers: Record<string, boolean>; // recipientId -> isTyping
+  identityKeyChangedUsers: Record<string, boolean>; // userId -> has key changed
 }
 
 interface ChatActions {
@@ -44,6 +45,9 @@ interface ChatActions {
   declineConversation: (conversationId: string) => void;
   blockConversation: (conversationId: string) => void;
   updateConversationStatus: (conversationId: string, status: ConversationStatus) => void;
+
+  // Security actions
+  setIdentityKeyChanged: (userId: string, changed: boolean) => void;
 }
 
 type ChatStore = ChatState & ChatActions;
@@ -91,12 +95,12 @@ const encryptedStorage = {
 export const useChatStore = create<ChatStore>()(
   persist(
     (set, get) => ({
-      // Initial state
       conversations: {},
       messages: {},
       activeConversationId: null,
       presenceCache: {},
       typingUsers: {},
+      identityKeyChangedUsers: {},
 
       // Conversation actions
       setActiveConversation: (id) => set({ activeConversationId: id }),
@@ -332,6 +336,7 @@ export const useChatStore = create<ChatStore>()(
           activeConversationId: null,
           presenceCache: {},
           typingUsers: {},
+          identityKeyChangedUsers: {},
         }),
 
       fetchUserProfile: async (userId: string) => {
@@ -455,6 +460,15 @@ export const useChatStore = create<ChatStore>()(
             },
           };
         }),
+
+      // Security actions
+      setIdentityKeyChanged: (userId, changed) =>
+        set((state) => ({
+          identityKeyChangedUsers: {
+            ...state.identityKeyChangedUsers,
+            [userId]: changed,
+          },
+        })),
     }),
     {
       name: 'chat-storage',

@@ -72,6 +72,8 @@ export type WSMessageType =
   | 'ice_candidate'
   | 'sync_request'
   | 'sync_data'
+  | 'sync_ack'
+  | 'identity_key_changed'
   | 'media_key'
   | 'heartbeat';
 
