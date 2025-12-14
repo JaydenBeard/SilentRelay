@@ -2,7 +2,7 @@
  * Settings Modal Component
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -178,6 +178,102 @@ function ProfileSection({ onBack }: { onBack: () => void }) {
   const { user, updateUser } = useAuthStore();
   const [displayName, setDisplayName] = useState(user?.displayName || '');
   const [isSaving, setIsSaving] = useState(false);
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleAvatarClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      alert('Please select an image file');
+      return;
+    }
+
+    // Validate file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      alert('Image must be less than 5MB');
+      return;
+    }
+
+    // Show preview immediately
+    const previewUrl = URL.createObjectURL(file);
+    setAvatarPreview(previewUrl);
+
+    // Upload the image
+    setIsUploadingAvatar(true);
+    try {
+      const token = useAuthStore.getState().token;
+
+      // 1. Get upload URL from backend
+      const uploadUrlResponse = await fetch('/api/v1/media/upload', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          file_name: file.name,
+          content_type: file.type,
+          file_size: file.size,
+        }),
+      });
+
+      if (!uploadUrlResponse.ok) {
+        throw new Error('Failed to get upload URL');
+      }
+
+      const { uploadUrl, downloadUrl } = await uploadUrlResponse.json();
+
+      // 2. Upload file to MinIO
+      const uploadResponse = await fetch(uploadUrl, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': file.type,
+        },
+        body: file,
+      });
+
+      if (!uploadResponse.ok) {
+        throw new Error('Failed to upload image');
+      }
+
+      // 3. Update user profile with new avatar URL
+      const updateResponse = await fetch('/api/v1/users/me', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ avatar_url: downloadUrl }),
+      });
+
+      if (!updateResponse.ok) {
+        throw new Error('Failed to update profile');
+      }
+
+      // 4. Update local state
+      updateUser({ avatar: downloadUrl });
+      setAvatarPreview(null); // Clear preview, use actual URL now
+
+    } catch (error) {
+      console.error('Failed to upload avatar:', error);
+      alert('Failed to upload image. Please try again.');
+      setAvatarPreview(null);
+    } finally {
+      setIsUploadingAvatar(false);
+      // Reset file input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
 
   const handleSave = async () => {
     if (!displayName.trim()) return;
@@ -215,15 +311,33 @@ function ProfileSection({ onBack }: { onBack: () => void }) {
         <div className="flex flex-col items-center">
           <div className="relative">
             <Avatar className="h-24 w-24">
-              <AvatarImage src={user?.avatar} />
+              <AvatarImage src={avatarPreview || user?.avatar} />
               <AvatarFallback className="text-2xl">
                 {user?.displayName?.charAt(0) || user?.username?.charAt(0)?.toUpperCase() || '?'}
               </AvatarFallback>
             </Avatar>
-            <button className="absolute bottom-0 right-0 p-2 rounded-full bg-primary text-primary-foreground hover:bg-primary/90 transition-colors">
-              <Camera className="h-4 w-4" />
+            <button
+              onClick={handleAvatarClick}
+              disabled={isUploadingAvatar}
+              className="absolute bottom-0 right-0 p-2 rounded-full bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
+            >
+              {isUploadingAvatar ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Camera className="h-4 w-4" />
+              )}
             </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              onChange={handleAvatarChange}
+              className="hidden"
+            />
           </div>
+          {isUploadingAvatar && (
+            <p className="text-sm text-foreground-muted mt-2">Uploading...</p>
+          )}
         </div>
 
         {/* Display Name */}
@@ -274,6 +388,7 @@ function ProfileSection({ onBack }: { onBack: () => void }) {
     </>
   );
 }
+
 
 // Privacy Section
 function PrivacySection({
