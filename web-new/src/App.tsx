@@ -32,18 +32,22 @@ function App() {
     }
   }, [isAuthenticated, loadPrivacyFromServer]);
 
-  // Apply theme setting
+  // Apply theme setting (dark is default, .light class enables light mode)
   useEffect(() => {
     const root = document.documentElement;
 
+    // Remove both classes first
+    root.classList.remove('dark', 'light');
+
     if (app.theme === 'system') {
       const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-      root.classList.toggle('dark', prefersDark);
-      root.classList.toggle('light', !prefersDark);
-    } else {
-      root.classList.toggle('dark', app.theme === 'dark');
-      root.classList.toggle('light', app.theme === 'light');
+      if (!prefersDark) {
+        root.classList.add('light');
+      }
+    } else if (app.theme === 'light') {
+      root.classList.add('light');
     }
+    // For 'dark', no class needed since it's the default
   }, [app.theme]);
 
   // Apply font size setting

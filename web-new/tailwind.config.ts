@@ -9,48 +9,41 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        // Primary backgrounds - deep navy tones
+        // Use CSS custom properties for theme switching
         background: {
-          DEFAULT: 'hsl(222, 47%, 6%)',
-          secondary: 'hsl(222, 35%, 10%)',
-          tertiary: 'hsl(222, 30%, 14%)',
+          DEFAULT: 'rgb(var(--background) / <alpha-value>)',
+          secondary: 'rgb(var(--background-secondary) / <alpha-value>)',
+          tertiary: 'rgb(var(--background-tertiary) / <alpha-value>)',
         },
-        // Foreground text - improved contrast for WCAG AA compliance
         foreground: {
-          DEFAULT: 'hsl(210, 40%, 98%)',
-          secondary: 'hsl(215, 20%, 70%)',  // Improved from 65%
-          muted: 'hsl(215, 15%, 55%)',      // Improved from 45% for 4.5:1 contrast
+          DEFAULT: 'rgb(var(--foreground) / <alpha-value>)',
+          secondary: 'rgb(var(--foreground-secondary) / <alpha-value>)',
+          muted: 'rgb(var(--foreground-muted) / <alpha-value>)',
         },
-        // Primary accent - teal
         primary: {
-          DEFAULT: 'hsl(168, 84%, 51%)',
-          hover: 'hsl(168, 84%, 45%)',
-          foreground: 'hsl(222, 47%, 6%)',
+          DEFAULT: 'hsl(var(--primary) / <alpha-value>)',
+          foreground: 'rgb(var(--primary-foreground) / <alpha-value>)',
         },
-        // Secondary accent - purple
         accent: {
-          DEFAULT: 'hsl(262, 83%, 58%)',
-          hover: 'hsl(262, 83%, 52%)',
+          DEFAULT: 'hsl(var(--accent) / <alpha-value>)',
         },
-        // Status colors
         success: {
-          DEFAULT: 'hsl(142, 71%, 45%)',
+          DEFAULT: 'hsl(var(--success) / <alpha-value>)',
         },
         warning: {
-          DEFAULT: 'hsl(38, 92%, 50%)',
+          DEFAULT: 'hsl(var(--warning) / <alpha-value>)',
         },
         destructive: {
-          DEFAULT: 'hsl(0, 84%, 60%)',
-          foreground: 'hsl(210, 40%, 98%)',
+          DEFAULT: 'hsl(var(--destructive) / <alpha-value>)',
+          foreground: 'rgb(var(--destructive-foreground) / <alpha-value>)',
         },
-        // UI elements
-        border: 'hsl(222, 20%, 18%)',
-        input: 'hsl(222, 20%, 18%)',
-        ring: 'hsl(168, 84%, 51%)',
-        // Chat-specific
+        border: 'rgb(var(--border) / <alpha-value>)',
+        input: 'rgb(var(--input) / <alpha-value>)',
+        ring: 'hsl(var(--ring) / <alpha-value>)',
+        // Chat-specific (keeping hardcoded for now)
         message: {
           outgoing: 'hsl(168, 84%, 35%)',
-          incoming: 'hsl(222, 30%, 18%)',
+          incoming: 'rgb(var(--background-tertiary) / <alpha-value>)',
         },
       },
       borderRadius: {
