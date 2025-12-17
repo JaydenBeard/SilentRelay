@@ -62,6 +62,29 @@ export interface Conversation {
   status: ConversationStatus; // For message requests
 }
 
+// Friendship types
+export type FriendshipStatus = 'none' | 'pending_sent' | 'pending_received' | 'friends';
+
+export interface Friend {
+  user_id: string;
+  username: string;
+  display_name: string;
+  avatar_url?: string;
+  is_online: boolean;
+  last_seen?: string;
+  friends_since: string;
+}
+
+export interface FriendRequest {
+  id: string;
+  user_id: string;
+  username: string;
+  display_name: string;
+  avatar_url?: string;
+  created_at: string;
+  type: 'incoming' | 'outgoing';
+}
+
 // WebSocket message types
 export type WSMessageType =
   | 'send'

@@ -320,6 +320,24 @@ CREATE INDEX idx_blocked_blocker ON blocked_users(blocker_id);
 CREATE INDEX idx_blocked_blocked ON blocked_users(blocked_id);
 
 -- ============================================
+-- FRIENDSHIPS (Facebook-style friend requests)
+-- ============================================
+CREATE TABLE friendships (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    requester_id UUID NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+    addressee_id UUID NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+    status VARCHAR(20) NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'accepted', 'declined')),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (requester_id, addressee_id),
+    CHECK (requester_id != addressee_id)
+);
+
+CREATE INDEX idx_friendships_requester ON friendships(requester_id);
+CREATE INDEX idx_friendships_addressee ON friendships(addressee_id);
+CREATE INDEX idx_friendships_status ON friendships(status);
+
+-- ============================================
 -- MEDIA METADATA
 -- ============================================
 CREATE TABLE media (

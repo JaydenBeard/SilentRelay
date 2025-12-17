@@ -1428,6 +1428,309 @@ func (p *PostgresDB) IsBlocked(blockerID, blockedID uuid.UUID) (bool, error) {
 }
 
 // ============================================
+// FRIENDSHIPS (Facebook-style friend requests)
+// ============================================
+
+// FriendInfo represents a friend with their profile info
+type FriendInfo struct {
+	UserID       uuid.UUID `json:"user_id"`
+	Username     string    `json:"username,omitempty"`
+	DisplayName  string    `json:"display_name,omitempty"`
+	AvatarURL    string    `json:"avatar_url,omitempty"`
+	IsOnline     bool      `json:"is_online"`
+	LastSeen     time.Time `json:"last_seen,omitempty"`
+	FriendsSince time.Time `json:"friends_since"`
+}
+
+// FriendRequest represents a pending friend request
+type FriendRequest struct {
+	ID          uuid.UUID `json:"id"`
+	UserID      uuid.UUID `json:"user_id"`
+	Username    string    `json:"username,omitempty"`
+	DisplayName string    `json:"display_name,omitempty"`
+	AvatarURL   string    `json:"avatar_url,omitempty"`
+	CreatedAt   time.Time `json:"created_at"`
+	Type        string    `json:"type"` // "incoming" or "outgoing"
+}
+
+// SendFriendRequest sends a friend request from requester to addressee
+func (p *PostgresDB) SendFriendRequest(requesterID, addresseeID uuid.UUID) error {
+	// Check if a friendship already exists (in either direction)
+	var existingStatus string
+	err := p.db.QueryRow(`
+		SELECT status FROM friendships 
+		WHERE (requester_id = $1 AND addressee_id = $2) 
+		   OR (requester_id = $2 AND addressee_id = $1)
+	`, requesterID, addresseeID).Scan(&existingStatus)
+
+	if err == nil {
+		if existingStatus == "accepted" {
+			return fmt.Errorf("already friends")
+		}
+		if existingStatus == "pending" {
+			return fmt.Errorf("friend request already pending")
+		}
+	}
+
+	// Insert new friend request
+	_, err = p.db.Exec(`
+		INSERT INTO friendships (requester_id, addressee_id, status)
+		VALUES ($1, $2, 'pending')
+		ON CONFLICT (requester_id, addressee_id) DO UPDATE SET
+			status = 'pending',
+			updated_at = NOW()
+	`, requesterID, addresseeID)
+	return err
+}
+
+// AcceptFriendRequest accepts a pending friend request
+func (p *PostgresDB) AcceptFriendRequest(addresseeID, requesterID uuid.UUID) error {
+	result, err := p.db.Exec(`
+		UPDATE friendships 
+		SET status = 'accepted', updated_at = NOW()
+		WHERE requester_id = $1 AND addressee_id = $2 AND status = 'pending'
+	`, requesterID, addresseeID)
+	if err != nil {
+		return err
+	}
+
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rows == 0 {
+		return fmt.Errorf("no pending friend request found")
+	}
+	return nil
+}
+
+// DeclineFriendRequest declines a pending friend request
+func (p *PostgresDB) DeclineFriendRequest(addresseeID, requesterID uuid.UUID) error {
+	result, err := p.db.Exec(`
+		UPDATE friendships 
+		SET status = 'declined', updated_at = NOW()
+		WHERE requester_id = $1 AND addressee_id = $2 AND status = 'pending'
+	`, requesterID, addresseeID)
+	if err != nil {
+		return err
+	}
+
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rows == 0 {
+		return fmt.Errorf("no pending friend request found")
+	}
+	return nil
+}
+
+// RemoveFriend removes a friendship (unfriend)
+func (p *PostgresDB) RemoveFriend(userID, friendID uuid.UUID) error {
+	_, err := p.db.Exec(`
+		DELETE FROM friendships 
+		WHERE (requester_id = $1 AND addressee_id = $2)
+		   OR (requester_id = $2 AND addressee_id = $1)
+	`, userID, friendID)
+	return err
+}
+
+// GetFriends returns all friends of a user
+func (p *PostgresDB) GetFriends(userID uuid.UUID) ([]FriendInfo, error) {
+	query := `
+		SELECT 
+			u.user_id, 
+			COALESCE(u.username, '') as username,
+			COALESCE(u.display_name, '') as display_name, 
+			COALESCE(u.avatar_url, '') as avatar_url,
+			u.is_active as is_online,
+			u.last_seen,
+			f.updated_at as friends_since
+		FROM friendships f
+		JOIN users u ON (
+			CASE 
+				WHEN f.requester_id = $1 THEN f.addressee_id
+				ELSE f.requester_id
+			END = u.user_id
+		)
+		WHERE (f.requester_id = $1 OR f.addressee_id = $1)
+		  AND f.status = 'accepted'
+		ORDER BY u.display_name, u.username`
+
+	rows, err := p.db.Query(query, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		if err := rows.Close(); err != nil {
+			log.Printf("Warning: failed to close rows: %v", err)
+		}
+	}()
+
+	var friends []FriendInfo
+	for rows.Next() {
+		var f FriendInfo
+		if err := rows.Scan(&f.UserID, &f.Username, &f.DisplayName, &f.AvatarURL, &f.IsOnline, &f.LastSeen, &f.FriendsSince); err != nil {
+			return nil, err
+		}
+		friends = append(friends, f)
+	}
+	return friends, nil
+}
+
+// GetPendingFriendRequests returns incoming friend requests for a user
+func (p *PostgresDB) GetPendingFriendRequests(userID uuid.UUID) ([]FriendRequest, error) {
+	query := `
+		SELECT 
+			f.id,
+			u.user_id, 
+			COALESCE(u.username, '') as username,
+			COALESCE(u.display_name, '') as display_name, 
+			COALESCE(u.avatar_url, '') as avatar_url,
+			f.created_at
+		FROM friendships f
+		JOIN users u ON f.requester_id = u.user_id
+		WHERE f.addressee_id = $1 AND f.status = 'pending'
+		ORDER BY f.created_at DESC`
+
+	rows, err := p.db.Query(query, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		if err := rows.Close(); err != nil {
+			log.Printf("Warning: failed to close rows: %v", err)
+		}
+	}()
+
+	var requests []FriendRequest
+	for rows.Next() {
+		var r FriendRequest
+		if err := rows.Scan(&r.ID, &r.UserID, &r.Username, &r.DisplayName, &r.AvatarURL, &r.CreatedAt); err != nil {
+			return nil, err
+		}
+		r.Type = "incoming"
+		requests = append(requests, r)
+	}
+	return requests, nil
+}
+
+// GetSentFriendRequests returns outgoing friend requests from a user
+func (p *PostgresDB) GetSentFriendRequests(userID uuid.UUID) ([]FriendRequest, error) {
+	query := `
+		SELECT 
+			f.id,
+			u.user_id, 
+			COALESCE(u.username, '') as username,
+			COALESCE(u.display_name, '') as display_name, 
+			COALESCE(u.avatar_url, '') as avatar_url,
+			f.created_at
+		FROM friendships f
+		JOIN users u ON f.addressee_id = u.user_id
+		WHERE f.requester_id = $1 AND f.status = 'pending'
+		ORDER BY f.created_at DESC`
+
+	rows, err := p.db.Query(query, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		if err := rows.Close(); err != nil {
+			log.Printf("Warning: failed to close rows: %v", err)
+		}
+	}()
+
+	var requests []FriendRequest
+	for rows.Next() {
+		var r FriendRequest
+		if err := rows.Scan(&r.ID, &r.UserID, &r.Username, &r.DisplayName, &r.AvatarURL, &r.CreatedAt); err != nil {
+			return nil, err
+		}
+		r.Type = "outgoing"
+		requests = append(requests, r)
+	}
+	return requests, nil
+}
+
+// AreFriends checks if two users are friends
+func (p *PostgresDB) AreFriends(userID1, userID2 uuid.UUID) (bool, error) {
+	var areFriends bool
+	err := p.db.QueryRow(`
+		SELECT EXISTS(
+			SELECT 1 FROM friendships
+			WHERE ((requester_id = $1 AND addressee_id = $2)
+			    OR (requester_id = $2 AND addressee_id = $1))
+			  AND status = 'accepted'
+		)
+	`, userID1, userID2).Scan(&areFriends)
+	return areFriends, err
+}
+
+// GetFriendshipStatus returns the friendship status between two users
+// Returns: "none", "pending_sent", "pending_received", "friends"
+func (p *PostgresDB) GetFriendshipStatus(currentUserID, otherUserID uuid.UUID) (string, error) {
+	var requesterID uuid.UUID
+	var status string
+
+	err := p.db.QueryRow(`
+		SELECT requester_id, status FROM friendships
+		WHERE (requester_id = $1 AND addressee_id = $2)
+		   OR (requester_id = $2 AND addressee_id = $1)
+	`, currentUserID, otherUserID).Scan(&requesterID, &status)
+
+	if err == sql.ErrNoRows {
+		return "none", nil
+	}
+	if err != nil {
+		return "", err
+	}
+
+	if status == "accepted" {
+		return "friends", nil
+	}
+	if status == "pending" {
+		if requesterID == currentUserID {
+			return "pending_sent", nil
+		}
+		return "pending_received", nil
+	}
+	return "none", nil
+}
+
+// GetFriendIDs returns just the user IDs of all friends (for efficient checks)
+func (p *PostgresDB) GetFriendIDs(userID uuid.UUID) ([]uuid.UUID, error) {
+	query := `
+		SELECT 
+			CASE 
+				WHEN requester_id = $1 THEN addressee_id
+				ELSE requester_id
+			END as friend_id
+		FROM friendships
+		WHERE (requester_id = $1 OR addressee_id = $1)
+		  AND status = 'accepted'`
+
+	rows, err := p.db.Query(query, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		if err := rows.Close(); err != nil {
+			log.Printf("Warning: failed to close rows: %v", err)
+		}
+	}()
+
+	var friendIDs []uuid.UUID
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		friendIDs = append(friendIDs, id)
+	}
+	return friendIDs, nil
+}
+
+// ============================================
 // SEALED SENDER CERTIFICATES
 // ============================================
 

@@ -208,6 +208,16 @@ func main() {
 	protected.HandleFunc("/users/unblock", handlers.UnblockUser(database)).Methods("POST")
 	protected.HandleFunc("/users/{userId}/blocked", handlers.IsBlocked(database)).Methods("GET")
 
+	// Friend routes
+	protected.HandleFunc("/friends", handlers.GetFriends(database)).Methods("GET")
+	protected.HandleFunc("/friends/requests", handlers.GetFriendRequests(database)).Methods("GET")
+	protected.HandleFunc("/friends/request", handlers.SendFriendRequest(database)).Methods("POST")
+	protected.HandleFunc("/friends/accept", handlers.AcceptFriendRequest(database)).Methods("POST")
+	protected.HandleFunc("/friends/decline", handlers.DeclineFriendRequest(database)).Methods("POST")
+	protected.HandleFunc("/friends/cancel", handlers.CancelFriendRequest(database)).Methods("POST")
+	protected.HandleFunc("/friends/{userId}", handlers.RemoveFriend(database)).Methods("DELETE")
+	protected.HandleFunc("/friends/{userId}/status", handlers.GetFriendshipStatus(database)).Methods("GET")
+
 	// Device approval routes (secure device linking)
 	// NOTE: request/verify/status endpoints are intentionally public because new devices
 	// don't have auth tokens yet. Rate limiting applied to prevent enumeration.

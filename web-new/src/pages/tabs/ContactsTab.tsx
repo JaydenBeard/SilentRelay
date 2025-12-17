@@ -2,15 +2,16 @@
  * Friends Tab
  * 
  * Friends management with:
- * - Friends list with glassmorphism cards (people who have messaged back)
+ * - Friends list with glassmorphism cards
  * - Online status indicators with pulse animations
- * - Friend requests section (incoming messages you haven't responded to)
- * - Add friends functionality
+ * - Friend requests section (incoming/outgoing)
+ * - Add friends functionality (sends friend request)
  */
 
 import { useState, useMemo, useCallback, useEffect } from 'react';
 import { useAuthStore } from '@/core/store/authStore';
 import { useChatStore } from '@/core/store/chatStore';
+import { useFriendsStore } from '@/core/store/friendsStore';
 
 // UI Components
 import { GlassCard } from '@/components/ui/GlassCard';
@@ -36,69 +37,64 @@ import {
     UserCheck,
     UserX,
     Clock,
+    Loader2,
+    X,
 } from 'lucide-react';
+import type { FriendRequest } from '@/core/types';
 
-// Mock data for contacts (will be replaced with real API calls)
-interface Contact {
+interface SearchResult {
     id: string;
     username: string;
     displayName: string;
     avatarUrl?: string;
-    isOnline: boolean;
-    lastSeen?: number;
-    hasStory?: boolean;
-    storyViewed?: boolean;
-}
-
-// Mock friend requests
-interface FriendRequest {
-    id: string;
-    username: string;
-    displayName: string;
-    avatarUrl?: string;
-    createdAt: string;
-    type: 'received' | 'sent';
+    isOnline?: boolean;
 }
 
 export function ContactsTab() {
     const { token } = useAuthStore();
-    const { conversations, messages, setActiveConversation } = useChatStore();
+    const { setActiveConversation } = useChatStore();
+    const {
+        friends,
+        incomingRequests,
+        outgoingRequests,
+        isLoading,
+        refreshAll,
+        sendFriendRequest,
+        acceptRequest,
+        declineRequest,
+        cancelRequest,
+    } = useFriendsStore();
 
     // State
     const [searchQuery, setSearchQuery] = useState('');
     const [isAddFriendOpen, setIsAddFriendOpen] = useState(false);
     const [addFriendUsername, setAddFriendUsername] = useState('');
-    const [searchResults, setSearchResults] = useState<Contact[]>([]);
+    const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
     const [isSearching, setIsSearching] = useState(false);
     const [activeSection, setActiveSection] = useState<'all' | 'online' | 'requests'>('all');
+    const [sendingRequest, setSendingRequest] = useState<string | null>(null);
 
-    // Derive friends from conversations where there's mutual communication
-    // A "friend" is someone who has replied to you (has messages from them in the conversation)
-    const contacts = useMemo<Contact[]>(() => {
-        return Object.values(conversations)
-            .filter(conv => {
-                // Only include if they've actually sent us a message (mutual communication)
-                const conversationMessages = messages[conv.id] || [];
-                const hasMessageFromThem = conversationMessages.some(
-                    msg => msg.senderId === conv.recipientId
-                );
-                return hasMessageFromThem;
-            })
-            .map(conv => ({
-                id: conv.recipientId,
-                username: conv.recipientName.replace(/^@/, ''),
-                displayName: conv.recipientName,
-                avatarUrl: conv.recipientAvatar,
-                isOnline: conv.isOnline ?? false,
-                lastSeen: conv.lastSeen,
-                hasStory: false, // TODO: Integrate with stories
-                storyViewed: false,
-            }));
-    }, [conversations, messages]);
+    // Load friends on mount
+    useEffect(() => {
+        refreshAll();
+    }, [refreshAll]);
 
-    // Filter contacts based on search and section
-    const filteredContacts = useMemo(() => {
-        let result = contacts;
+    // Convert API friends to display format
+    const displayFriends = useMemo(() => {
+        return friends.map(f => ({
+            id: f.user_id,
+            username: f.username,
+            displayName: f.display_name || `@${f.username}`,
+            avatarUrl: f.avatar_url,
+            isOnline: f.is_online,
+            lastSeen: f.last_seen ? new Date(f.last_seen).getTime() : undefined,
+            friendsSince: f.friends_since,
+        }));
+    }, [friends]);
+
+    // Filter friends based on search and section
+    const filteredFriends = useMemo(() => {
+        let result = displayFriends;
 
         // Filter by section
         if (activeSection === 'online') {
@@ -119,34 +115,16 @@ export function ContactsTab() {
             if (a.isOnline !== b.isOnline) return a.isOnline ? -1 : 1;
             return a.displayName.localeCompare(b.displayName);
         });
-    }, [contacts, activeSection, searchQuery]);
+    }, [displayFriends, activeSection, searchQuery]);
 
-    // Mock friend requests (would come from API)
-    const friendRequests = useMemo<FriendRequest[]>(() => {
-        // Get pending conversations as received requests
-        return Object.values(conversations)
-            .filter(c => c.status === 'pending')
-            .map(conv => {
-                const ts = conv.lastMessage?.timestamp;
-                const createdAt = typeof ts === 'number'
-                    ? new Date(ts).toISOString()
-                    : (ts || new Date().toISOString());
-                return {
-                    id: conv.recipientId,
-                    username: conv.recipientName.replace(/^@/, ''),
-                    displayName: conv.recipientName,
-                    avatarUrl: conv.recipientAvatar,
-                    createdAt,
-                    type: 'received' as const,
-                };
-            });
-    }, [conversations]);
-
-    // Count online contacts
+    // Count online friends
     const onlineCount = useMemo(() =>
-        contacts.filter(c => c.isOnline).length,
-        [contacts]
+        displayFriends.filter(c => c.isOnline).length,
+        [displayFriends]
     );
+
+    // Total pending requests count
+    const pendingRequestsCount = incomingRequests.length + outgoingRequests.length;
 
     // Search for users to add as friends
     useEffect(() => {
@@ -188,20 +166,39 @@ export function ContactsTab() {
         return () => clearTimeout(timeoutId);
     }, [addFriendUsername, isAddFriendOpen, token]);
 
-    // Handle starting a chat with a contact
-    const handleStartChat = useCallback((contactId: string) => {
-        setActiveConversation(contactId);
+    // Handle starting a chat with a friend
+    const handleStartChat = useCallback((friendId: string) => {
+        setActiveConversation(friendId);
         // Note: Tab switching would be handled by parent
     }, [setActiveConversation]);
 
-    // Handle adding a friend (start conversation)
-    const handleAddFriend = useCallback((contact: Contact) => {
-        // For now, this just starts a conversation
-        // In future, this could send a friend request
-        setIsAddFriendOpen(false);
-        setAddFriendUsername('');
-        handleStartChat(contact.id);
-    }, [handleStartChat]);
+    // Handle sending a friend request
+    const handleSendFriendRequest = useCallback(async (userId: string) => {
+        setSendingRequest(userId);
+        try {
+            await sendFriendRequest(userId);
+            setIsAddFriendOpen(false);
+            setAddFriendUsername('');
+            setSearchResults([]);
+        } finally {
+            setSendingRequest(null);
+        }
+    }, [sendFriendRequest]);
+
+    // Handle accepting a friend request
+    const handleAcceptRequest = useCallback(async (userId: string) => {
+        await acceptRequest(userId);
+    }, [acceptRequest]);
+
+    // Handle declining a friend request
+    const handleDeclineRequest = useCallback(async (userId: string) => {
+        await declineRequest(userId);
+    }, [declineRequest]);
+
+    // Handle canceling an outgoing request
+    const handleCancelRequest = useCallback(async (userId: string) => {
+        await cancelRequest(userId);
+    }, [cancelRequest]);
 
     return (
         <div className="h-full flex flex-col has-tab-bar">
@@ -224,7 +221,7 @@ export function ContactsTab() {
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-foreground-muted" />
                     <Input
                         type="text"
-                        placeholder="Search contacts..."
+                        placeholder="Search friends..."
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
                         className="pl-10 rounded-xl bg-background-secondary border-0"
@@ -239,7 +236,7 @@ export function ContactsTab() {
                         onClick={() => setActiveSection('all')}
                         className="rounded-full"
                     >
-                        All ({contacts.length})
+                        All ({displayFriends.length})
                     </Button>
                     <Button
                         variant={activeSection === 'online' ? 'default' : 'ghost'}
@@ -250,14 +247,14 @@ export function ContactsTab() {
                         <span className="w-2 h-2 rounded-full bg-success mr-2" />
                         Online ({onlineCount})
                     </Button>
-                    {friendRequests.length > 0 && (
+                    {pendingRequestsCount > 0 && (
                         <Button
                             variant={activeSection === 'requests' ? 'default' : 'ghost'}
                             size="sm"
                             onClick={() => setActiveSection('requests')}
                             className="rounded-full"
                         >
-                            Requests ({friendRequests.length})
+                            Requests ({pendingRequestsCount})
                         </Button>
                     )}
                 </div>
@@ -265,47 +262,79 @@ export function ContactsTab() {
 
             {/* Content */}
             <div className="flex-1 overflow-y-auto px-4 pb-4">
-                {activeSection === 'requests' ? (
+                {isLoading ? (
+                    <div className="flex items-center justify-center py-12">
+                        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                    </div>
+                ) : activeSection === 'requests' ? (
                     // Friend Requests Section
-                    <div className="space-y-3 mt-4">
-                        {friendRequests.length === 0 ? (
+                    <div className="space-y-4 mt-4">
+                        {/* Incoming Requests */}
+                        {incomingRequests.length > 0 && (
+                            <div>
+                                <h3 className="text-sm font-medium text-foreground-muted mb-2">
+                                    Incoming Requests
+                                </h3>
+                                <div className="space-y-3">
+                                    {incomingRequests.map((request) => (
+                                        <FriendRequestCard
+                                            key={request.id}
+                                            request={request}
+                                            onAccept={() => handleAcceptRequest(request.user_id)}
+                                            onDecline={() => handleDeclineRequest(request.user_id)}
+                                        />
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Outgoing Requests */}
+                        {outgoingRequests.length > 0 && (
+                            <div>
+                                <h3 className="text-sm font-medium text-foreground-muted mb-2">
+                                    Sent Requests
+                                </h3>
+                                <div className="space-y-3">
+                                    {outgoingRequests.map((request) => (
+                                        <OutgoingRequestCard
+                                            key={request.id}
+                                            request={request}
+                                            onCancel={() => handleCancelRequest(request.user_id)}
+                                        />
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {pendingRequestsCount === 0 && (
                             <EmptyState
                                 icon={UserCheck}
                                 title="No pending requests"
                                 description="When someone sends you a friend request, it will appear here."
                             />
-                        ) : (
-                            friendRequests.map((request) => (
-                                <FriendRequestCard
-                                    key={request.id}
-                                    request={request}
-                                    onAccept={() => {/* TODO */ }}
-                                    onDecline={() => {/* TODO */ }}
-                                />
-                            ))
                         )}
                     </div>
                 ) : (
-                    // Contacts List
+                    // Friends List
                     <div className="space-y-2 mt-4">
-                        {filteredContacts.length === 0 ? (
+                        {filteredFriends.length === 0 ? (
                             <EmptyState
                                 icon={Users}
                                 title={activeSection === 'online' ? 'No one online' : 'No friends yet'}
                                 description={
                                     activeSection === 'online'
                                         ? 'None of your friends are currently online.'
-                                        : "When someone replies to your message, they'll appear here."
+                                        : 'Add friends to see them here.'
                                 }
                                 actionLabel={activeSection === 'all' ? 'Add Friend' : undefined}
                                 onAction={activeSection === 'all' ? () => setIsAddFriendOpen(true) : undefined}
                             />
                         ) : (
-                            filteredContacts.map((contact) => (
-                                <ContactCard
-                                    key={contact.id}
-                                    contact={contact}
-                                    onMessage={() => handleStartChat(contact.id)}
+                            filteredFriends.map((friend) => (
+                                <FriendCard
+                                    key={friend.id}
+                                    friend={friend}
+                                    onMessage={() => handleStartChat(friend.id)}
                                     onCall={() => {/* TODO: Initiate call */ }}
                                     onVideoCall={() => {/* TODO: Initiate video call */ }}
                                 />
@@ -321,7 +350,7 @@ export function ContactsTab() {
                     <DialogHeader>
                         <DialogTitle>Add Friend</DialogTitle>
                         <DialogDescription>
-                            Search by username to start a conversation. They'll become a friend once they reply.
+                            Search by username and send a friend request.
                         </DialogDescription>
                     </DialogHeader>
 
@@ -350,8 +379,9 @@ export function ContactsTab() {
                                     <button
                                         key={result.id}
                                         type="button"
-                                        onClick={() => handleAddFriend(result)}
-                                        className="w-full px-4 py-3 flex items-center gap-3 hover:bg-background-tertiary transition-colors text-left touch-target"
+                                        onClick={() => handleSendFriendRequest(result.id)}
+                                        disabled={sendingRequest === result.id}
+                                        className="w-full px-4 py-3 flex items-center gap-3 hover:bg-background-tertiary transition-colors text-left touch-target disabled:opacity-50"
                                     >
                                         <Avatar className="h-10 w-10">
                                             <AvatarImage src={result.avatarUrl} />
@@ -365,7 +395,11 @@ export function ContactsTab() {
                                                 <p className="text-sm text-foreground-secondary">{result.displayName}</p>
                                             )}
                                         </div>
-                                        <UserPlus className="h-5 w-5 text-primary" />
+                                        {sendingRequest === result.id ? (
+                                            <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                                        ) : (
+                                            <UserPlus className="h-5 w-5 text-primary" />
+                                        )}
                                     </button>
                                 ))}
                             </div>
@@ -397,15 +431,22 @@ export function ContactsTab() {
 }
 
 /**
- * Contact Card Component
+ * Friend Card Component
  */
-function ContactCard({
-    contact,
+function FriendCard({
+    friend,
     onMessage,
     onCall,
     onVideoCall,
 }: {
-    contact: Contact;
+    friend: {
+        id: string;
+        username: string;
+        displayName: string;
+        avatarUrl?: string;
+        isOnline: boolean;
+        lastSeen?: number;
+    };
     onMessage: () => void;
     onCall: () => void;
     onVideoCall: () => void;
@@ -418,25 +459,23 @@ function ContactCard({
         >
             {/* Avatar with status */}
             <AvatarRing
-                src={contact.avatarUrl}
-                alt={contact.displayName}
-                fallback={contact.displayName.charAt(0)}
+                src={friend.avatarUrl}
+                alt={friend.displayName}
+                fallback={friend.displayName.charAt(0)}
                 size="lg"
-                isOnline={contact.isOnline}
-                hasStory={contact.hasStory}
-                storyViewed={contact.storyViewed}
+                isOnline={friend.isOnline}
             />
 
             {/* Info */}
             <div className="flex-1 min-w-0">
-                <p className="font-medium truncate">{contact.displayName}</p>
+                <p className="font-medium truncate">{friend.displayName}</p>
                 <p className="text-sm text-foreground-muted truncate">
-                    {contact.isOnline ? (
+                    {friend.isOnline ? (
                         <span className="text-success">Online</span>
-                    ) : contact.lastSeen ? (
-                        `Last seen ${formatLastSeen(contact.lastSeen)}`
+                    ) : friend.lastSeen ? (
+                        `Last seen ${formatLastSeen(friend.lastSeen)}`
                     ) : (
-                        '@' + contact.username
+                        '@' + friend.username
                     )}
                 </p>
             </div>
@@ -488,17 +527,17 @@ function FriendRequestCard({
         <GlassCard variant="default" className="p-4">
             <div className="flex items-center gap-3">
                 <AvatarRing
-                    src={request.avatarUrl}
-                    alt={request.displayName}
-                    fallback={request.displayName.charAt(0)}
+                    src={request.avatar_url}
+                    alt={request.display_name || request.username}
+                    fallback={(request.display_name || request.username).charAt(0)}
                     size="lg"
                 />
 
                 <div className="flex-1 min-w-0">
-                    <p className="font-medium truncate">{request.displayName}</p>
+                    <p className="font-medium truncate">{request.display_name || `@${request.username}`}</p>
                     <p className="text-sm text-foreground-muted flex items-center gap-1">
                         <Clock className="h-3 w-3" />
-                        {formatLastSeen(request.createdAt)}
+                        {formatLastSeen(new Date(request.created_at).getTime())}
                     </p>
                 </div>
             </div>
@@ -528,9 +567,49 @@ function FriendRequestCard({
 }
 
 /**
+ * Outgoing Request Card Component
+ */
+function OutgoingRequestCard({
+    request,
+    onCancel,
+}: {
+    request: FriendRequest;
+    onCancel: () => void;
+}) {
+    return (
+        <GlassCard variant="subtle" className="p-4">
+            <div className="flex items-center gap-3">
+                <AvatarRing
+                    src={request.avatar_url}
+                    alt={request.display_name || request.username}
+                    fallback={(request.display_name || request.username).charAt(0)}
+                    size="lg"
+                />
+
+                <div className="flex-1 min-w-0">
+                    <p className="font-medium truncate">{request.display_name || `@${request.username}`}</p>
+                    <p className="text-sm text-foreground-muted">
+                        Request sent {formatLastSeen(new Date(request.created_at).getTime())}
+                    </p>
+                </div>
+
+                <Button
+                    size="icon"
+                    variant="ghost"
+                    onClick={onCancel}
+                    className="h-9 w-9 rounded-full text-foreground-muted hover:text-destructive"
+                >
+                    <X className="h-4 w-4" />
+                </Button>
+            </div>
+        </GlassCard>
+    );
+}
+
+/**
  * Format last seen timestamp
  */
-function formatLastSeen(timestamp: string | number): string {
+function formatLastSeen(timestamp: number): string {
     const date = new Date(timestamp);
     const now = new Date();
     const diffMs = now.getTime() - date.getTime();
