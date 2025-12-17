@@ -1,10 +1,10 @@
 /**
- * Contacts Tab
+ * Friends Tab
  * 
- * Friends/Contacts management with:
- * - Contact list with glassmorphism cards
+ * Friends management with:
+ * - Friends list with glassmorphism cards (people who have messaged back)
  * - Online status indicators with pulse animations
- * - Friend requests section (received/sent)
+ * - Friend requests section (incoming messages you haven't responded to)
  * - Add friends functionality
  */
 
@@ -62,7 +62,7 @@ interface FriendRequest {
 
 export function ContactsTab() {
     const { token } = useAuthStore();
-    const { conversations, setActiveConversation } = useChatStore();
+    const { conversations, messages, setActiveConversation } = useChatStore();
 
     // State
     const [searchQuery, setSearchQuery] = useState('');
@@ -72,10 +72,18 @@ export function ContactsTab() {
     const [isSearching, setIsSearching] = useState(false);
     const [activeSection, setActiveSection] = useState<'all' | 'online' | 'requests'>('all');
 
-    // Derive contacts from conversations (users we've chatted with)
+    // Derive friends from conversations where there's mutual communication
+    // A "friend" is someone who has replied to you (has messages from them in the conversation)
     const contacts = useMemo<Contact[]>(() => {
         return Object.values(conversations)
-            .filter(c => c.status === 'accepted')
+            .filter(conv => {
+                // Only include if they've actually sent us a message (mutual communication)
+                const conversationMessages = messages[conv.id] || [];
+                const hasMessageFromThem = conversationMessages.some(
+                    msg => msg.senderId === conv.recipientId
+                );
+                return hasMessageFromThem;
+            })
             .map(conv => ({
                 id: conv.recipientId,
                 username: conv.recipientName.replace(/^@/, ''),
@@ -86,7 +94,7 @@ export function ContactsTab() {
                 hasStory: false, // TODO: Integrate with stories
                 storyViewed: false,
             }));
-    }, [conversations]);
+    }, [conversations, messages]);
 
     // Filter contacts based on search and section
     const filteredContacts = useMemo(() => {
@@ -200,7 +208,7 @@ export function ContactsTab() {
             {/* Header */}
             <header className="flex-shrink-0 px-4 pt-4 pb-2">
                 <div className="flex items-center justify-between mb-4">
-                    <h1 className="text-2xl font-bold">Contacts</h1>
+                    <h1 className="text-2xl font-bold">Friends</h1>
                     <Button
                         size="icon"
                         variant="ghost"
@@ -283,11 +291,11 @@ export function ContactsTab() {
                         {filteredContacts.length === 0 ? (
                             <EmptyState
                                 icon={Users}
-                                title={activeSection === 'online' ? 'No one online' : 'No contacts yet'}
+                                title={activeSection === 'online' ? 'No one online' : 'No friends yet'}
                                 description={
                                     activeSection === 'online'
-                                        ? 'None of your contacts are currently online.'
-                                        : 'Start a conversation to add contacts.'
+                                        ? 'None of your friends are currently online.'
+                                        : "When someone replies to your message, they'll appear here."
                                 }
                                 actionLabel={activeSection === 'all' ? 'Add Friend' : undefined}
                                 onAction={activeSection === 'all' ? () => setIsAddFriendOpen(true) : undefined}
@@ -313,7 +321,7 @@ export function ContactsTab() {
                     <DialogHeader>
                         <DialogTitle>Add Friend</DialogTitle>
                         <DialogDescription>
-                            Search for someone by their username to add them as a friend.
+                            Search by username to start a conversation. They'll become a friend once they reply.
                         </DialogDescription>
                     </DialogHeader>
 

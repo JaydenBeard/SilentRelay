@@ -258,6 +258,16 @@ export function ChatsTab({ onEnterChat, onExitChat }: ChatsTabProps) {
     }) => {
         setIsNewChatOpen(false);
 
+        // Check if we already have a conversation with this user
+        const existingConversation = conversations[foundUser.user_id];
+        if (existingConversation) {
+            // Just select the existing conversation
+            handleSelectConversation(existingConversation.id);
+            return;
+        }
+
+        // Create new conversation with 'pending' status
+        // This means they won't appear in Friends until they reply
         const conversation: Conversation = {
             id: foundUser.user_id,
             recipientId: foundUser.user_id,
@@ -267,12 +277,12 @@ export function ChatsTab({ onEnterChat, onExitChat }: ChatsTabProps) {
             isOnline: false,
             isPinned: false,
             isMuted: false,
-            status: 'accepted',
+            status: 'pending',
         };
 
         addConversation(conversation);
         handleSelectConversation(conversation.id);
-    }, [addConversation, handleSelectConversation]);
+    }, [conversations, addConversation, handleSelectConversation]);
 
     // Handle file upload
     const handleFileUploadComplete = useCallback(async (result: UploadResult) => {
