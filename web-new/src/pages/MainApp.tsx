@@ -1,6 +1,6 @@
 /**
  * MainApp Container
- * 
+ *
  * Root container for authenticated app experience with 5-tab navigation:
  * - Chats: Messaging interface
  * - Contacts: Friends list and management
@@ -12,6 +12,7 @@
 import { useState, useMemo, useCallback } from 'react';
 import { TabBar, type TabId } from '@/components/navigation';
 import { useChatStore } from '@/core/store/chatStore';
+import { useAuthStore } from '@/core/store/authStore';
 
 // Tab components
 import { ChatsTab } from '@/pages/tabs/ChatsTab';
@@ -20,12 +21,29 @@ import { CallsTab } from '@/pages/tabs/CallsTab';
 import { StoriesTab } from '@/pages/tabs/StoriesTab';
 import { ProfileTab } from '@/pages/tabs/ProfileTab';
 
+// Auth components
+import { Onboarding } from '@/components/Onboarding';
+import { PinUnlock } from '@/components/auth/PinUnlock';
+
 export default function MainApp() {
     const [activeTab, setActiveTab] = useState<TabId>('chats');
     const [hideTabBar, setHideTabBar] = useState(false);
 
+    // Auth state - check if user needs onboarding or PIN unlock
+    const { needsOnboarding, needsPinUnlock, onboardingStep } = useAuthStore();
+
     // Get unread counts for badges
     const { conversations } = useChatStore();
+
+    // Show PIN unlock for existing users who need to unlock their encrypted data
+    if (needsPinUnlock) {
+        return <PinUnlock />;
+    }
+
+    // Show onboarding wizard for new users (must complete before accessing app)
+    if (needsOnboarding && onboardingStep !== 'complete') {
+        return <Onboarding />;
+    }
 
     const badges = useMemo(() => {
         const unreadChats = Object.values(conversations).reduce(

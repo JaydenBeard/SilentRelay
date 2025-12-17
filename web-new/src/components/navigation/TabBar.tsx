@@ -96,8 +96,8 @@ export function TabBar({ activeTab, onTabChange, badges = {}, className }: TabBa
                             aria-label={tab.label}
                             aria-current={isActive ? 'page' : undefined}
                         >
-                            {/* Badge */}
-                            {badge && badge > 0 && (
+                            {/* Badge - only show if greater than 0 */}
+                            {typeof badge === 'number' && badge > 0 && (
                                 <span className="tab-badge">
                                     {badge > 99 ? '99+' : badge}
                                 </span>
