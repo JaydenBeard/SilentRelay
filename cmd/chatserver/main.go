@@ -16,6 +16,7 @@ import (
 	"github.com/jaydenbeard/messaging-app/internal/handlers"
 	"github.com/jaydenbeard/messaging-app/internal/middleware"
 	"github.com/jaydenbeard/messaging-app/internal/pubsub"
+	"github.com/jaydenbeard/messaging-app/internal/push"
 	"github.com/jaydenbeard/messaging-app/internal/registry"
 	"github.com/jaydenbeard/messaging-app/internal/security"
 	"github.com/jaydenbeard/messaging-app/internal/websocket"
@@ -94,6 +95,32 @@ func main() {
 	authService, err := auth.NewAuthService(database, config.GetCurrentSecret())
 	if err != nil {
 		log.Fatalf("Failed to initialize auth service: %v", err)
+	}
+
+	// Initialize APNs push notification service
+	var pushService *push.PushService
+	apnsKeyPath := os.Getenv("APNS_KEY_PATH")
+	if apnsKeyPath != "" {
+		apnsConfig := push.APNsConfig{
+			KeyPath:    apnsKeyPath,
+			KeyID:      os.Getenv("APNS_KEY_ID"),
+			TeamID:     os.Getenv("APNS_TEAM_ID"),
+			BundleID:   os.Getenv("APNS_BUNDLE_ID"),
+			Production: os.Getenv("APNS_PRODUCTION") == "true",
+		}
+		apnsClient, err := push.NewAPNsClient(apnsConfig)
+		if err != nil {
+			log.Printf("Warning: Failed to initialize APNs client: %v", err)
+		} else {
+			deviceStore := push.NewDeviceStore(database.GetDB())
+			if err := deviceStore.CreateTable(context.Background()); err != nil {
+				log.Printf("Warning: Failed to create device_tokens table: %v", err)
+			}
+			pushService = push.NewPushService(apnsClient, deviceStore)
+			log.Println("✅ APNs push notifications enabled")
+		}
+	} else {
+		log.Println("⚠️ APNs not configured (APNS_KEY_PATH not set)")
 	}
 
 	// Initialize WebSocket hub with HMAC secret for message authentication
@@ -253,6 +280,15 @@ func main() {
 
 	// WebRTC routes
 	protected.HandleFunc("/rtc/turn-credentials", handlers.GetTurnCredentials()).Methods("GET")
+
+	// Push notification routes
+	if pushService != nil {
+		deviceStore := push.NewDeviceStore(database.GetDB())
+		pushHandler := handlers.NewPushHandler(deviceStore, pushService)
+		protected.HandleFunc("/devices/push-token", pushHandler.RegisterToken).Methods("POST")
+		protected.HandleFunc("/devices/push-token", pushHandler.UnregisterToken).Methods("DELETE")
+		protected.HandleFunc("/devices/test-push", pushHandler.TestPush).Methods("POST")
+	}
 
 	// WebSocket endpoint (requires auth via query param or header)
 	router.HandleFunc("/ws", handlers.WebSocketHandler(hub, authService)).Methods("GET")
