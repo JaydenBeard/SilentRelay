@@ -5,7 +5,7 @@ import { useSettingsStore } from '@/core/store/settingsStore';
 import { Toaster } from '@/components/ui/toaster';
 import LandingPage from '@/pages/Landing';
 import AuthPage from '@/pages/Auth';
-import ChatPage from '@/pages/Chat';
+import MainApp from '@/pages/MainApp';
 import PrivacyPolicy from '@/pages/legal/PrivacyPolicy';
 import TermsOfService from '@/pages/legal/TermsOfService';
 import SecurityPolicy from '@/pages/legal/SecurityPolicy';
@@ -62,17 +62,22 @@ function App() {
       <Routes>
         <Route
           path="/"
-          element={isAuthenticated ? <Navigate to="/chat" replace /> : <LandingPage />}
+          element={isAuthenticated ? <Navigate to="/app" replace /> : <LandingPage />}
         />
         <Route
           path="/auth"
-          element={isAuthenticated ? <Navigate to="/chat" replace /> : <AuthPage />}
+          element={isAuthenticated ? <Navigate to="/app" replace /> : <AuthPage />}
         />
+        {/* Legacy /chat route redirects to /app */}
         <Route
           path="/chat"
+          element={<Navigate to="/app" replace />}
+        />
+        <Route
+          path="/app"
           element={
             <ProtectedRoute>
-              <ChatPage />
+              <MainApp />
             </ProtectedRoute>
           }
         />
@@ -88,3 +93,4 @@ function App() {
 }
 
 export default App;
+

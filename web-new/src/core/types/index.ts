@@ -5,6 +5,8 @@ export interface User {
   username?: string;
   displayName?: string;
   avatar?: string;
+  avatarUrl?: string; // Alias for avatar (used in profile components)
+  bio?: string; // User bio/status message
   publicKey: string;
   createdAt: number;
 }
