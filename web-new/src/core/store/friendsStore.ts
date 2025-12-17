@@ -54,25 +54,39 @@ export const useFriendsStore = create<FriendsStore>((set, get) => ({
     error: null,
 
     fetchFriends: async () => {
+        const token = useAuthStore.getState().token;
+        if (!token) return; // Don't fetch if not authenticated
+
         try {
             const response = await fetch('/api/v1/friends', {
                 headers: getAuthHeaders(),
             });
-            if (!response.ok) throw new Error('Failed to fetch friends');
+            if (!response.ok) {
+                // Gracefully handle API errors (e.g., table doesn't exist yet)
+                console.warn('Friends API not available');
+                return;
+            }
             const friends = await response.json();
             set({ friends: friends || [] });
         } catch (error) {
             console.error('Failed to fetch friends:', error);
-            set({ error: 'Failed to fetch friends' });
+            // Don't set error state to avoid breaking the UI
         }
     },
 
     fetchRequests: async () => {
+        const token = useAuthStore.getState().token;
+        if (!token) return; // Don't fetch if not authenticated
+
         try {
             const response = await fetch('/api/v1/friends/requests', {
                 headers: getAuthHeaders(),
             });
-            if (!response.ok) throw new Error('Failed to fetch requests');
+            if (!response.ok) {
+                // Gracefully handle API errors
+                console.warn('Friend requests API not available');
+                return;
+            }
             const data = await response.json();
             set({
                 incomingRequests: data.incoming || [],
@@ -80,7 +94,7 @@ export const useFriendsStore = create<FriendsStore>((set, get) => ({
             });
         } catch (error) {
             console.error('Failed to fetch friend requests:', error);
-            set({ error: 'Failed to fetch friend requests' });
+            // Don't set error state to avoid breaking the UI
         }
     },
 
