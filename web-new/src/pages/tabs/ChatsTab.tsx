@@ -58,6 +58,7 @@ import {
 
 // Feature components
 import { FileUpload } from '@/components/chat/FileUpload';
+import { UserProfileSheet } from '@/components/chat/UserProfileSheet';
 import { Settings } from '@/components/settings';
 import { IncomingCall, ActiveCall, CallEnded } from '@/components/call';
 import { Onboarding } from '@/components/Onboarding';
@@ -138,6 +139,7 @@ export function ChatsTab({ onEnterChat, onExitChat }: ChatsTabProps) {
     const [conversationToDelete, setConversationToDelete] = useState<string | null>(null);
     const [isMessageRequestsOpen, setIsMessageRequestsOpen] = useState(false);
     const [lightboxImage, setLightboxImage] = useState<{ src: string; fileName: string } | null>(null);
+    const [isProfileSheetOpen, setIsProfileSheetOpen] = useState(false);
 
     // Computed values
     const conversationList = useMemo(() => Object.values(conversations), [conversations]);
@@ -391,19 +393,28 @@ export function ChatsTab({ onEnterChat, onExitChat }: ChatsTabProps) {
         return activeMessages.some(m => m.senderId === activeConversation.recipientId);
     }, [activeConversation, activeMessages]);
 
-    // Handle send friend request (for now this is a placeholder - would be an API call)
+    // Handle send friend request
+    // In SilentRelay, "friend request" is implicit - when you send a message to someone
+    // who hasn't messaged you back yet, they get a "message request" they can accept
     const handleSendFriendRequest = useCallback(async () => {
         if (!activeConversation) return;
-        // TODO: Implement actual friend request API
-        // For now, we'll just show a confirmation that they'll see friend request once they reply
-        console.log('Friend request would be sent to:', activeConversation.recipientId);
-    }, [activeConversation]);
 
-    // Handle view user profile
+        // Send a friendly first message to initiate the connection
+        // The recipient will see it as a message request
+        try {
+            await sendMessage(
+                activeConversation.recipientId,
+                "Hey! I'd like to connect with you on SilentRelay."
+            );
+        } catch (error) {
+            console.error('Failed to send friend request:', error);
+        }
+    }, [activeConversation, sendMessage]);
+
+    // Handle view user profile - open the profile sheet
     const handleViewProfile = useCallback(() => {
         if (!activeConversation) return;
-        // TODO: Navigate to user profile view
-        console.log('View profile:', activeConversation.recipientId);
+        setIsProfileSheetOpen(true);
     }, [activeConversation]);
 
     // Show PIN unlock for existing users who need to unlock their encrypted data
@@ -688,6 +699,40 @@ export function ChatsTab({ onEnterChat, onExitChat }: ChatsTabProps) {
                     fileName={lightboxImage.fileName}
                     onClose={handleCloseLightbox}
                     onDownload={handleDownloadFromLightbox}
+                />
+            )}
+
+            {/* USER PROFILE SHEET */}
+            {activeConversation && (
+                <UserProfileSheet
+                    open={isProfileSheetOpen}
+                    onOpenChange={setIsProfileSheetOpen}
+                    user={{
+                        id: activeConversation.recipientId,
+                        username: activeConversation.recipientName.replace(/^@/, ''),
+                        displayName: activeConversation.recipientName,
+                        avatarUrl: activeConversation.recipientAvatar,
+                        isOnline: recipientOnline,
+                        lastSeen: recipientLastSeen,
+                    }}
+                    isFriend={isFriend}
+                    onSendFriendRequest={handleSendFriendRequest}
+                    onMessage={() => {
+                        // Already in chat, just close the sheet
+                        setIsProfileSheetOpen(false);
+                    }}
+                    onVoiceCall={() => {
+                        handleCall('audio');
+                        setIsProfileSheetOpen(false);
+                    }}
+                    onVideoCall={() => {
+                        handleCall('video');
+                        setIsProfileSheetOpen(false);
+                    }}
+                    onBlock={() => {
+                        blockConversation(activeConversation.id);
+                        setIsProfileSheetOpen(false);
+                    }}
                 />
             )}
         </div>
