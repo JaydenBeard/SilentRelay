@@ -47,11 +47,13 @@ import {
 import {
     MessageSquare,
     UserPlus,
+    UserCheck,
     Shield,
     Trash2,
     BellOff,
     Pin,
     MoreVertical,
+    User,
 } from 'lucide-react';
 
 // Feature components
@@ -382,6 +384,28 @@ export function ChatsTab({ onEnterChat, onExitChat }: ChatsTabProps) {
         }
     }, [activeConversation, updateConversation]);
 
+    // Check if this user is already a friend (has accepted conversation with messages from them)
+    const isFriend = useMemo(() => {
+        if (!activeConversation) return false;
+        // Consider them a friend if they've replied (conversation is active both ways)
+        return activeMessages.some(m => m.senderId === activeConversation.recipientId);
+    }, [activeConversation, activeMessages]);
+
+    // Handle send friend request (for now this is a placeholder - would be an API call)
+    const handleSendFriendRequest = useCallback(async () => {
+        if (!activeConversation) return;
+        // TODO: Implement actual friend request API
+        // For now, we'll just show a confirmation that they'll see friend request once they reply
+        console.log('Friend request would be sent to:', activeConversation.recipientId);
+    }, [activeConversation]);
+
+    // Handle view user profile
+    const handleViewProfile = useCallback(() => {
+        if (!activeConversation) return;
+        // TODO: Navigate to user profile view
+        console.log('View profile:', activeConversation.recipientId);
+    }, [activeConversation]);
+
     // Show PIN unlock for existing users who need to unlock their encrypted data
     if (needsPinUnlock) {
         return <PinUnlock />;
@@ -449,7 +473,24 @@ export function ChatsTab({ onEnterChat, onExitChat }: ChatsTabProps) {
                                             <MoreVertical className="h-5 w-5" />
                                         </Button>
                                     </DropdownMenuTrigger>
-                                    <DropdownMenuContent align="end" className="w-48">
+                                    <DropdownMenuContent align="end" className="w-52">
+                                        <DropdownMenuItem onClick={handleViewProfile}>
+                                            <User className="h-4 w-4 mr-2" />
+                                            View Profile
+                                        </DropdownMenuItem>
+                                        {!isFriend && (
+                                            <DropdownMenuItem onClick={handleSendFriendRequest}>
+                                                <UserPlus className="h-4 w-4 mr-2" />
+                                                Add Friend
+                                            </DropdownMenuItem>
+                                        )}
+                                        {isFriend && (
+                                            <DropdownMenuItem disabled className="text-success">
+                                                <UserCheck className="h-4 w-4 mr-2" />
+                                                Friends
+                                            </DropdownMenuItem>
+                                        )}
+                                        <DropdownMenuSeparator />
                                         <DropdownMenuItem onClick={handleTogglePin}>
                                             <Pin className="h-4 w-4 mr-2" />
                                             {activeConversation.isPinned ? 'Unpin Chat' : 'Pin Chat'}

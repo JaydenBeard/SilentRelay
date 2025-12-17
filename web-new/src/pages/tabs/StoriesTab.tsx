@@ -52,17 +52,48 @@ interface UserStories {
 // Mock data - will be replaced with real API
 const mockUserStories: UserStories[] = [];
 
+// Local storage key for persisting stories
+const STORIES_STORAGE_KEY = 'silentrelay_my_stories';
+
+// Load stories from localStorage
+function loadStoriesFromStorage(): Story[] {
+    try {
+        const stored = localStorage.getItem(STORIES_STORAGE_KEY);
+        if (!stored) return [];
+        const stories: Story[] = JSON.parse(stored);
+        // Filter out expired stories
+        const now = new Date();
+        return stories.filter(s => new Date(s.expiresAt) > now);
+    } catch {
+        return [];
+    }
+}
+
+// Save stories to localStorage
+function saveStoriesToStorage(stories: Story[]) {
+    try {
+        localStorage.setItem(STORIES_STORAGE_KEY, JSON.stringify(stories));
+    } catch (e) {
+        console.error('Failed to save stories:', e);
+    }
+}
+
 export function StoriesTab() {
     const { user } = useAuthStore();
 
-    // State
-    const [myStories, setMyStories] = useState<Story[]>([]);
+    // State - load from localStorage on init
+    const [myStories, setMyStories] = useState<Story[]>(() => loadStoriesFromStorage());
     const [otherStories] = useState<UserStories[]>(mockUserStories);
     const [isCreateOpen, setIsCreateOpen] = useState(false);
     const [viewingStory, setViewingStory] = useState<{
         userStories: UserStories;
         currentIndex: number;
     } | null>(null);
+
+    // Persist stories to localStorage when they change
+    useEffect(() => {
+        saveStoriesToStorage(myStories);
+    }, [myStories]);
 
     // Derive stories from contacts who have stories
     const storiesFromContacts = useMemo(() => {
@@ -403,7 +434,7 @@ function CreateStoryModal({
                     </div>
 
                     {/* Color picker */}
-                    <div className="p-4 border-t border-border">
+                    <div className="p-4 pb-safe border-t border-border bg-background">
                         <div className="flex justify-center gap-3 mb-4">
                             {backgroundColors.map((color) => (
                                 <button
@@ -421,7 +452,8 @@ function CreateStoryModal({
                         <Button
                             onClick={handleCreateTextStory}
                             disabled={!textContent.trim()}
-                            className="w-full rounded-xl"
+                            className="w-full rounded-xl mb-4"
+                            size="lg"
                         >
                             Share Story
                         </Button>
