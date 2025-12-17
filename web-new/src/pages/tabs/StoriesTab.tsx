@@ -57,7 +57,7 @@ export function StoriesTab() {
 
     // State
     const [myStories, setMyStories] = useState<Story[]>([]);
-    const [otherStories, setOtherStories] = useState<UserStories[]>(mockUserStories);
+    const [otherStories] = useState<UserStories[]>(mockUserStories);
     const [isCreateOpen, setIsCreateOpen] = useState(false);
     const [viewingStory, setViewingStory] = useState<{
         userStories: UserStories;
@@ -449,7 +449,6 @@ function StoryViewer({
     onClose: () => void;
 }) {
     const story = userStories.stories[currentIndex];
-    const progressRef = useRef<HTMLDivElement>(null);
     const [progress, setProgress] = useState(0);
 
     // Auto-advance timer

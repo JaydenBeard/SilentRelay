@@ -9,7 +9,6 @@
  */
 
 import { useState, useMemo, useCallback, useEffect } from 'react';
-import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/core/store/authStore';
 import { useChatStore } from '@/core/store/chatStore';
 
@@ -46,7 +45,7 @@ interface Contact {
     displayName: string;
     avatarUrl?: string;
     isOnline: boolean;
-    lastSeen?: string;
+    lastSeen?: number;
     hasStory?: boolean;
     storyViewed?: boolean;
 }
@@ -62,7 +61,7 @@ interface FriendRequest {
 }
 
 export function ContactsTab() {
-    const { user, token } = useAuthStore();
+    const { token } = useAuthStore();
     const { conversations, setActiveConversation } = useChatStore();
 
     // State
@@ -119,14 +118,20 @@ export function ContactsTab() {
         // Get pending conversations as received requests
         return Object.values(conversations)
             .filter(c => c.status === 'pending')
-            .map(conv => ({
-                id: conv.recipientId,
-                username: conv.recipientName.replace(/^@/, ''),
-                displayName: conv.recipientName,
-                avatarUrl: conv.recipientAvatar,
-                createdAt: conv.lastMessage?.timestamp || new Date().toISOString(),
-                type: 'received' as const,
-            }));
+            .map(conv => {
+                const ts = conv.lastMessage?.timestamp;
+                const createdAt = typeof ts === 'number'
+                    ? new Date(ts).toISOString()
+                    : (ts || new Date().toISOString());
+                return {
+                    id: conv.recipientId,
+                    username: conv.recipientName.replace(/^@/, ''),
+                    displayName: conv.recipientName,
+                    avatarUrl: conv.recipientAvatar,
+                    createdAt,
+                    type: 'received' as const,
+                };
+            });
     }, [conversations]);
 
     // Count online contacts
@@ -517,7 +522,7 @@ function FriendRequestCard({
 /**
  * Format last seen timestamp
  */
-function formatLastSeen(timestamp: string): string {
+function formatLastSeen(timestamp: string | number): string {
     const date = new Date(timestamp);
     const now = new Date();
     const diffMs = now.getTime() - date.getTime();

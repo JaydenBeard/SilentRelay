@@ -24,8 +24,6 @@ import {
     PhoneOutgoing,
     PhoneMissed,
     Video,
-    Clock,
-    Trash2,
 } from 'lucide-react';
 
 // Call types
@@ -106,11 +104,6 @@ export function CallsTab() {
             call.type
         );
     }, [startCall, conversations]);
-
-    // Handle delete call
-    const handleDeleteCall = useCallback((callId: string) => {
-        setCallHistory(prev => prev.filter(c => c.id !== callId));
-    }, []);
 
     // Handle clear all calls
     const handleClearAll = useCallback(() => {
@@ -193,7 +186,6 @@ export function CallsTab() {
                                             key={call.id}
                                             call={call}
                                             onCallback={() => handleCallback(call)}
-                                            onDelete={() => handleDeleteCall(call.id)}
                                         />
                                     ))}
                                 </div>
@@ -214,11 +206,9 @@ export function CallsTab() {
 function CallHistoryItem({
     call,
     onCallback,
-    onDelete,
 }: {
     call: CallRecord;
     onCallback: () => void;
-    onDelete: () => void;
 }) {
     // Get call icon based on direction and status
     const CallIcon = useMemo(() => {
